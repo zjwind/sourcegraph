@@ -133,19 +133,56 @@ func serveConfiguration(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// serveSearchConfiguration is _only_ used by the zoekt index server. Zoekt does
-// not depend on frontend and therefore does not have access to `conf.Watch`.
-// Additionally, it only cares about certain search specific settings so this
-// search specific endpoint is used rather than serving the entire site settings
-// from /.internal/configuration.
+// serveSearchConfiguration is _only_ used by the
+// zoekt-sourcegraph-indexserver. Zoekt does not depend on frontend and
+// therefore does not have access to `conf.Watch`.  Additionally, it only
+// cares about certain search specific settings so this search specific
+// endpoint is used rather than serving the entire site settings from
+// /.internal/configuration.
+//
+// See getIndexOptions in the zoekt repository.
 func serveSearchConfiguration(w http.ResponseWriter, r *http.Request) error {
+	repo := r.URL.Query().Get("repo")
+
 	opts := struct {
+		// LargeFiles is a slice of glob patterns where matching file paths should
+		// be indexed regardless of their size. The pattern syntax can be found
+		// here: https://golang.org/pkg/path/filepath/#Match.
 		LargeFiles []string
-		Symbols    bool
+
+		// Symbols if true will make zoekt index the output of ctags.
+		Symbols bool
+
+		// Branches is a slice of branches to index. By default it will be
+		// HEAD. These will be resolved, so you can pass in tags/refs/commits.
+		//
+		// Indexing multiple branches is still experimental. As such this should
+		// only be set if an admin has opted into it.
+		Branches []struct {
+			Name    string
+			Version string
+		} `json:",omitempty"`
 	}{
 		LargeFiles: conf.Get().SearchLargeFiles,
 		Symbols:    conf.SymbolIndexEnabled(),
 	}
+
+	if repo != "" {
+		for _, vc := range conf.Get().ExperimentalFeatures.VersionContexts {
+			for _, rev := range vc.Revisions {
+				if rev.Repo == repo {
+					opts.Branches = append(opts.Branches, struct {
+						Name    string
+						Version string
+					}{
+						Name:    rev.Repo,
+						Version: rev.Rev,
+					})
+				}
+			}
+		}
+	}
+
 	err := json.NewEncoder(w).Encode(opts)
 	if err != nil {
 		return errors.Wrap(err, "encode")
