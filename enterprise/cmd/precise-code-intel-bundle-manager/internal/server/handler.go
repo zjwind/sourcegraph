@@ -43,6 +43,7 @@ func (s *Server) handler() http.Handler {
 	mux.Path("/dbs/{id:[0-9]+}/monikersByPosition").Methods("GET").HandlerFunc(s.handleMonikersByPosition)
 	mux.Path("/dbs/{id:[0-9]+}/monikerResults").Methods("GET").HandlerFunc(s.handleMonikerResults)
 	mux.Path("/dbs/{id:[0-9]+}/packageInformation").Methods("GET").HandlerFunc(s.handlePackageInformation)
+	mux.Path("/dbs/{id:[0-9]+}/documentsReferencing").Methods("GET").HandlerFunc(s.handleDocumentsReferencing)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -286,6 +287,22 @@ func (s *Server) handlePackageInformation(w http.ResponseWriter, r *http.Request
 		}
 
 		return packageInformationData, nil
+	})
+}
+
+// GET /dbs/{id:[0-9]+}/documentsReferencing
+func (s *Server) handleDocumentsReferencing(w http.ResponseWriter, r *http.Request) {
+	s.dbQuery(w, r, func(ctx context.Context, db database.Database) (interface{}, error) {
+		documents, err := db.DocumentsReferencing(
+			ctx,
+			// TODO(efritz) - payload may be long - should we be POSTing instead?
+			getQueryStrings(r, "paths"),
+		)
+		if err != nil {
+			return nil, pkgerrors.Wrap(err, "db.DocumentsReferencing")
+		}
+
+		return documents, nil
 	})
 }
 

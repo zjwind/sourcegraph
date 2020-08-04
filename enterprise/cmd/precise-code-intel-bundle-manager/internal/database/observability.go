@@ -11,17 +11,18 @@ import (
 
 // An ObservedDatabase wraps another Database with error logging, Prometheus metrics, and tracing.
 type ObservedDatabase struct {
-	database                    Database
-	filename                    string
-	existsOperation             *observation.Operation
-	rangesOperation             *observation.Operation
-	definitionsOperation        *observation.Operation
-	referencesOperation         *observation.Operation
-	hoverOperation              *observation.Operation
-	diagnosticsOperation        *observation.Operation
-	monikersByPositionOperation *observation.Operation
-	monikerResultsOperation     *observation.Operation
-	packageInformationOperation *observation.Operation
+	database                      Database
+	filename                      string
+	existsOperation               *observation.Operation
+	rangesOperation               *observation.Operation
+	definitionsOperation          *observation.Operation
+	referencesOperation           *observation.Operation
+	hoverOperation                *observation.Operation
+	diagnosticsOperation          *observation.Operation
+	monikersByPositionOperation   *observation.Operation
+	monikerResultsOperation       *observation.Operation
+	packageInformationOperation   *observation.Operation
+	documentsReferencingOperation *observation.Operation
 }
 
 var _ Database = &ObservedDatabase{}
@@ -88,6 +89,11 @@ func NewObserved(database Database, filename string, observationContext *observa
 		packageInformationOperation: observationContext.Operation(observation.Op{
 			Name:         "Database.PackageInformation",
 			MetricLabels: []string{"package_information"},
+			Metrics:      metrics,
+		}),
+		documentsReferencingOperation: observationContext.Operation(observation.Op{
+			Name:         "Database.DocumentsReferencing",
+			MetricLabels: []string{"documents_referencing"},
 			Metrics:      metrics,
 		}),
 	}
@@ -223,4 +229,16 @@ func (db *ObservedDatabase) PackageInformation(ctx context.Context, path string,
 	})
 	defer endObservation(1, observation.Args{})
 	return db.database.PackageInformation(ctx, path, packageInformationID)
+}
+
+// DocumentsReferencing calls into the inner Database and registers the observed results.
+func (db *ObservedDatabase) DocumentsReferencing(ctx context.Context, paths []string) (_ []string, err error) {
+	ctx, endObservation := db.packageInformationOperation.With(ctx, &err, observation.Args{
+		LogFields: []log.Field{
+			log.String("filename", db.filename),
+			// TODO(efritz) - add path args
+		},
+	})
+	defer endObservation(1, observation.Args{}) // TODO(efritz) - add num out paths
+	return db.database.DocumentsReferencing(ctx, paths)
 }
