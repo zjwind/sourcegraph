@@ -11,13 +11,14 @@ import (
 	bundles "github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/client"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/types"
+	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/util"
 	"github.com/sourcegraph/sourcegraph/internal/trace/ot"
 )
 
 // Database wraps access to a single processed bundle.
 type Database interface {
 	// Close closes the underlying reader.
-	Close() error
+	Close(err error) error
 
 	// Exists determines if the path exists in the database.
 	Exists(ctx context.Context, path string) (bool, error)
@@ -97,8 +98,8 @@ func OpenDatabase(ctx context.Context, filename string, reader persistence.Reade
 }
 
 // Close closes the underlying reader.
-func (db *databaseImpl) Close() error {
-	return db.reader.Close()
+func (db *databaseImpl) Close(err error) error {
+	return db.reader.Close(err)
 }
 
 // Exists determines if the path exists in the database.
@@ -116,7 +117,7 @@ func (db *databaseImpl) Ranges(ctx context.Context, path string, startLine, endL
 
 	var rangeIDs []types.ID
 	for id, r := range documentData.Ranges {
-		if rangeIntersectsSpan(r, startLine, endLine) {
+		if util.RangeIntersectsSpan(r, startLine, endLine) {
 			rangeIDs = append(rangeIDs, id)
 		}
 	}
@@ -439,7 +440,7 @@ func (db *databaseImpl) getRangeByPosition(ctx context.Context, path string, lin
 		return types.DocumentData{}, nil, false, nil
 	}
 
-	return documentData, findRanges(documentData.Ranges, line, character), true, nil
+	return documentData, util.FindRanges(documentData.Ranges, line, character), true, nil
 }
 
 // locations returns the locations for the given definition or reference identifiers.

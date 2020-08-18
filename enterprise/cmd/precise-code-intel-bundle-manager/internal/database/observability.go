@@ -100,8 +100,8 @@ func NewObserved(database Database, filename string, observationContext *observa
 }
 
 // Close calls into the inner Database.
-func (db *ObservedDatabase) Close() error {
-	return db.database.Close()
+func (db *ObservedDatabase) Close(err error) error {
+	return db.database.Close(err)
 }
 
 // Exists calls into the inner Database and registers the observed results.

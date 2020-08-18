@@ -47,7 +47,7 @@ func NewBatchInserter(db Execable, tableName string, columnNames ...string) *Bat
 		quotedColumnNames[i] = fmt.Sprintf(`"%s"`, columnName)
 	}
 
-	queryPrefix := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES `, tableName, strings.Join(quotedColumnNames, ","))
+	queryPrefix := fmt.Sprintf(`INSERT OR REPLACE INTO "%s" (%s) VALUES `, tableName, strings.Join(quotedColumnNames, ","))
 
 	queryPlaceholders := make([]string, maxBatchSize/numColumns)
 	for i := range queryPlaceholders {

@@ -13,24 +13,25 @@ import (
 // Upload is a subset of the lsif_uploads table and stores both processed and unprocessed
 // records.
 type Upload struct {
-	ID             int        `json:"id"`
-	Commit         string     `json:"commit"`
-	Root           string     `json:"root"`
-	VisibleAtTip   bool       `json:"visibleAtTip"`
-	UploadedAt     time.Time  `json:"uploadedAt"`
-	State          string     `json:"state"`
-	FailureMessage *string    `json:"failureMessage"`
-	StartedAt      *time.Time `json:"startedAt"`
-	FinishedAt     *time.Time `json:"finishedAt"`
-	ProcessAfter   *time.Time `json:"processAfter"`
-	NumResets      int        `json:"numResets"`
-	RepositoryID   int        `json:"repositoryId"`
-	RepositoryName string     `json:"repositoryName"`
-	Indexer        string     `json:"indexer"`
-	NumParts       int        `json:"numParts"`
-	UploadedParts  []int      `json:"uploadedParts"`
-	UploadSize     *int64     `json:"uploadSize"`
-	Rank           *int       `json:"placeInQueue"`
+	ID              int        `json:"id"`
+	Commit          string     `json:"commit"`
+	Root            string     `json:"root"`
+	VisibleAtTip    bool       `json:"visibleAtTip"`
+	UploadedAt      time.Time  `json:"uploadedAt"`
+	State           string     `json:"state"`
+	FailureMessage  *string    `json:"failureMessage"`
+	StartedAt       *time.Time `json:"startedAt"`
+	FinishedAt      *time.Time `json:"finishedAt"`
+	ProcessAfter    *time.Time `json:"processAfter"`
+	NumResets       int        `json:"numResets"`
+	RepositoryID    int        `json:"repositoryId"`
+	RepositoryName  string     `json:"repositoryName"`
+	Indexer         string     `json:"indexer"`
+	NumParts        int        `json:"numParts"`
+	UploadedParts   []int      `json:"uploadedParts"`
+	UploadSize      *int64     `json:"uploadSize"`
+	Rank            *int       `json:"placeInQueue"`
+	PatchBaseCommit *string    `json:"patchBaseCommit"`
 }
 
 func (u Upload) RecordID() int {
@@ -67,6 +68,7 @@ func scanUploads(rows *sql.Rows, queryErr error) (_ []Upload, err error) {
 			pq.Array(&rawUploadedParts),
 			&upload.UploadSize,
 			&upload.Rank,
+			&upload.PatchBaseCommit,
 		); err != nil {
 			return nil, err
 		}
@@ -165,7 +167,8 @@ func (s *store) GetUploadByID(ctx context.Context, id int) (Upload, bool, error)
 			u.num_parts,
 			u.uploaded_parts,
 			u.upload_size,
-			s.rank
+			s.rank,
+                        u.patch_base_commit
 		FROM lsif_uploads_with_repository_name u
 		LEFT JOIN (
 			SELECT r.id, RANK() OVER (ORDER BY COALESCE(r.process_after, r.uploaded_at)) as rank
@@ -246,7 +249,8 @@ func (s *store) GetUploads(ctx context.Context, opts GetUploadsOptions) (_ []Upl
 				u.num_parts,
 				u.uploaded_parts,
 				u.upload_size,
-				s.rank
+				s.rank,
+                                u.patch_base_commit
 			FROM lsif_uploads_with_repository_name u
 			LEFT JOIN (
 				SELECT r.id, RANK() OVER (ORDER BY COALESCE(r.process_after, r.uploaded_at)) as rank
@@ -306,8 +310,9 @@ func (s *store) InsertUpload(ctx context.Context, upload Upload) (int, error) {
 				state,
 				num_parts,
 				uploaded_parts,
-				upload_size
-			) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+				upload_size,
+                                patch_base_commit
+			) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 			RETURNING id
 		`,
 			upload.Commit,
@@ -318,6 +323,7 @@ func (s *store) InsertUpload(ctx context.Context, upload Upload) (int, error) {
 			upload.NumParts,
 			pq.Array(upload.UploadedParts),
 			upload.UploadSize,
+			upload.PatchBaseCommit,
 		),
 	))
 

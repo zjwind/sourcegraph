@@ -93,6 +93,9 @@ type UploadArgs struct {
 	Root         string
 	RepositoryID int
 	Indexer      string
+	// if this index is incomplete and needs to be patched onto an existing index,
+	// the commit of that index
+	PatchBaseCommit *string
 }
 
 type enqueuePayload struct {
@@ -121,11 +124,16 @@ type enqueuePayload struct {
 func (h *UploadHandler) handleEnqueueErr(w http.ResponseWriter, r *http.Request, repositoryID int) (interface{}, error) {
 	ctx := r.Context()
 
+	var patchBaseCommit *string
+	if hasQuery(r, "patchBaseCommit") {
+		*patchBaseCommit = getQuery(r, "patchBaseCommit")
+	}
 	uploadArgs := UploadArgs{
-		Commit:       getQuery(r, "commit"),
-		Root:         sanitizeRoot(getQuery(r, "root")),
-		RepositoryID: repositoryID,
-		Indexer:      getQuery(r, "indexerName"),
+		Commit:          getQuery(r, "commit"),
+		Root:            sanitizeRoot(getQuery(r, "root")),
+		RepositoryID:    repositoryID,
+		Indexer:         getQuery(r, "indexerName"),
+		PatchBaseCommit: patchBaseCommit,
 	}
 
 	if !hasQuery(r, "multiPart") && !hasQuery(r, "uploadId") {
@@ -209,13 +217,14 @@ func (h *UploadHandler) handleEnqueueSinglePayload(r *http.Request, uploadArgs U
 	}()
 
 	id, err := tx.InsertUpload(ctx, store.Upload{
-		Commit:        uploadArgs.Commit,
-		Root:          uploadArgs.Root,
-		RepositoryID:  uploadArgs.RepositoryID,
-		Indexer:       uploadArgs.Indexer,
-		State:         "uploading",
-		NumParts:      1,
-		UploadedParts: []int{0},
+		Commit:          uploadArgs.Commit,
+		Root:            uploadArgs.Root,
+		RepositoryID:    uploadArgs.RepositoryID,
+		Indexer:         uploadArgs.Indexer,
+		State:           "uploading",
+		NumParts:        1,
+		UploadedParts:   []int{0},
+		PatchBaseCommit: uploadArgs.PatchBaseCommit,
 	})
 	if err != nil {
 		return nil, err
@@ -248,13 +257,14 @@ func (h *UploadHandler) handleEnqueueMultipartSetup(r *http.Request, uploadArgs 
 	ctx := r.Context()
 
 	id, err := h.store.InsertUpload(ctx, store.Upload{
-		Commit:        uploadArgs.Commit,
-		Root:          uploadArgs.Root,
-		RepositoryID:  uploadArgs.RepositoryID,
-		Indexer:       uploadArgs.Indexer,
-		State:         "uploading",
-		NumParts:      numParts,
-		UploadedParts: nil,
+		Commit:          uploadArgs.Commit,
+		Root:            uploadArgs.Root,
+		RepositoryID:    uploadArgs.RepositoryID,
+		Indexer:         uploadArgs.Indexer,
+		State:           "uploading",
+		NumParts:        numParts,
+		UploadedParts:   nil,
+		PatchBaseCommit: uploadArgs.PatchBaseCommit,
 	})
 	if err != nil {
 		return nil, err

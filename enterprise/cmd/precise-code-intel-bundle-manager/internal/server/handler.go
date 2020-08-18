@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/gorilla/mux"
 	"github.com/hashicorp/go-multierror"
@@ -14,11 +16,13 @@ import (
 	"github.com/mxk/go-flowrate/flowrate"
 	"github.com/opentracing/opentracing-go/ext"
 	pkgerrors "github.com/pkg/errors"
+
 	"github.com/sourcegraph/codeintelutils"
 	"github.com/sourcegraph/sourcegraph/enterprise/cmd/precise-code-intel-bundle-manager/internal/database"
 	"github.com/sourcegraph/sourcegraph/enterprise/cmd/precise-code-intel-bundle-manager/internal/paths"
+
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence"
-	sqlitereader "github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/sqlite"
+	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/sqlite"
 	"github.com/sourcegraph/sourcegraph/internal/trace/ot"
 )
 
@@ -120,24 +124,44 @@ func (s *Server) handlePostDatabasePart(w http.ResponseWriter, r *http.Request) 
 	_ = s.doUpload(w, r, makeFilename)
 }
 
-// POST /dbs/{id:[0-9]+}/stitch
+// POST /dbs/{id:[0-9]+}/stitch{,?patchBaseID=[0-9]+}
 func (s *Server) handlePostDatabaseStitch(w http.ResponseWriter, r *http.Request) {
+	var patchBaseID *int
+	if hasQuery(r, "patchBaseID") {
+		*patchBaseID = getQueryInt(r, "patchBaseID")
+	}
+
+	tempDir, err := ioutil.TempDir("","")
+	if err != nil {
+		// TODO: /* oops */
+	}
+	defer os.RemoveAll(tempDir)
+
+	resultFileName := paths.SQLiteDBFilename(s.bundleDir, idFromRequest(r))
 	id := idFromRequest(r)
-	filename := paths.SQLiteDBFilename(s.bundleDir, idFromRequest(r))
 	makePartFilename := func(index int) string {
 		return paths.DBPartFilename(s.bundleDir, id, int64(index))
 	}
 
-	if err := codeintelutils.StitchFiles(filename, makePartFilename, true, false); err != nil {
+	stitchFileName := resultFileName
+	if patchBaseID != nil {
+		stitchFileName = filepath.Join(tempDir, "stitch")
+	}
+	if err := codeintelutils.StitchFiles(stitchFileName, makePartFilename, true, false); err != nil {
 		log15.Error("Failed to stitch multipart database", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	if patchBaseID != nil {
+		baseBundle := paths.SQLiteDBFilename(s.bundleDir, int64(*patchBaseID))
+		sqlite.MergeDBs(r.Context(), baseBundle, stitchFileName, resultFileName)
+	}
+
 	// Once we have a database, we no longer need the upload file
 	s.deleteUpload(w, r)
 
-	_ = writeFileSize(w, filename)
+	_ = writeFileSize(w, resultFileName)
 }
 
 // GET /dbs/{id:[0-9]+}/exists
@@ -366,7 +390,7 @@ func (s *Server) dbQuery(w http.ResponseWriter, r *http.Request, handler dbQuery
 	id := idFromRequest(r)
 
 	if err := s.dbQueryErr(w, r, handler); err != nil {
-		if err == sqlitereader.ErrUnknownDatabase {
+		if err == sqlite.ErrUnknownDatabase {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}

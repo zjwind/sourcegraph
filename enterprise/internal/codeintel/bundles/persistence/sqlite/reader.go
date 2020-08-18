@@ -11,7 +11,6 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/cache"
-	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/serialization"
 	gobserializer "github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/serialization/gob"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/sqlite/migrate"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/sqlite/store"
@@ -21,45 +20,13 @@ import (
 // ErrNoMetadata occurs when there are no rows in the meta table.
 var ErrNoMetadata = errors.New("no rows in meta table")
 
-type sqliteReader struct {
-	filename   string
-	cache      cache.DataCache
-	store      *store.Store
-	closer     func() error
-	serializer serialization.Serializer
-}
-
-var _ persistence.Reader = &sqliteReader{}
+var _ persistence.Reader = &sqliteDatabase{}
 
 func NewReader(ctx context.Context, filename string, cache cache.DataCache) (_ persistence.Reader, err error) {
-	store, closer, err := store.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			if closeErr := closer(); closeErr != nil {
-				err = multierror.Append(err, closeErr)
-			}
-		}
-	}()
-
-	serializer := gobserializer.New()
-
-	if err := migrate.Migrate(ctx, store, serializer); err != nil {
-		return nil, err
-	}
-
-	return &sqliteReader{
-		filename:   filename,
-		cache:      cache,
-		store:      store,
-		closer:     closer,
-		serializer: serializer,
-	}, nil
+	return NewDatabase(ctx, filename, cache)
 }
 
-func (r *sqliteReader) ReadMeta(ctx context.Context) (types.MetaData, error) {
+func (r *sqliteDatabase) ReadMeta(ctx context.Context) (types.MetaData, error) {
 	numResultChunks, exists, err := store.ScanFirstInt(r.store.Query(ctx, sqlf.Sprintf(
 		`SELECT num_result_chunks FROM meta LIMIT 1`,
 	)))
@@ -75,11 +42,11 @@ func (r *sqliteReader) ReadMeta(ctx context.Context) (types.MetaData, error) {
 	}, nil
 }
 
-func (r *sqliteReader) PathsWithPrefix(ctx context.Context, prefix string) ([]string, error) {
+func (r *sqliteDatabase) PathsWithPrefix(ctx context.Context, prefix string) ([]string, error) {
 	return store.ScanStrings(r.store.Query(ctx, sqlf.Sprintf(`SELECT path FROM documents WHERE path LIKE %s`, prefix+"%")))
 }
 
-func (r *sqliteReader) ReadDocument(ctx context.Context, path string) (types.DocumentData, bool, error) {
+func (r *sqliteDatabase) ReadDocument(ctx context.Context, path string) (types.DocumentData, bool, error) {
 	key := r.makeCacheKey("document", path)
 	if documentData, ok := r.getFromCache(key).(types.DocumentData); ok {
 		return documentData, true, nil
@@ -102,7 +69,7 @@ func (r *sqliteReader) ReadDocument(ctx context.Context, path string) (types.Doc
 	return documentData, true, nil
 }
 
-func (r *sqliteReader) ReadResultChunk(ctx context.Context, id int) (types.ResultChunkData, bool, error) {
+func (r *sqliteDatabase) ReadResultChunk(ctx context.Context, id int) (types.ResultChunkData, bool, error) {
 	key := r.makeCacheKey("result-chunk", fmt.Sprintf("%d", id))
 	if resultChunkData, ok := r.getFromCache(key).(types.ResultChunkData); ok {
 		return resultChunkData, true, nil
@@ -125,15 +92,15 @@ func (r *sqliteReader) ReadResultChunk(ctx context.Context, id int) (types.Resul
 	return resultChunkData, true, nil
 }
 
-func (r *sqliteReader) ReadDefinitions(ctx context.Context, scheme, identifier string, skip, take int) ([]types.Location, int, error) {
+func (r *sqliteDatabase) ReadDefinitions(ctx context.Context, scheme, identifier string, skip, take int) ([]types.Location, int, error) {
 	return r.readDefinitionReferences(ctx, "definitions", scheme, identifier, skip, take)
 }
 
-func (r *sqliteReader) ReadReferences(ctx context.Context, scheme, identifier string, skip, take int) ([]types.Location, int, error) {
+func (r *sqliteDatabase) ReadReferences(ctx context.Context, scheme, identifier string, skip, take int) ([]types.Location, int, error) {
 	return r.readDefinitionReferences(ctx, "references", scheme, identifier, skip, take)
 }
 
-func (r *sqliteReader) readDefinitionReferences(ctx context.Context, tableName, scheme, identifier string, skip, take int) ([]types.Location, int, error) {
+func (r *sqliteDatabase) readDefinitionReferences(ctx context.Context, tableName, scheme, identifier string, skip, take int) ([]types.Location, int, error) {
 	locations, err := r.readMonikerLocations(ctx, tableName, scheme, identifier)
 	if err != nil {
 		return nil, 0, err
@@ -158,7 +125,7 @@ func (r *sqliteReader) readDefinitionReferences(ctx context.Context, tableName, 
 	return locations[lo:hi], len(locations), nil
 }
 
-func (r *sqliteReader) readMonikerLocations(ctx context.Context, tableName, scheme, identifier string) ([]types.Location, error) {
+func (r *sqliteDatabase) readMonikerLocations(ctx context.Context, tableName, scheme, identifier string) ([]types.Location, error) {
 	key := r.makeCacheKey(tableName, scheme, identifier)
 	if locations, ok := r.getFromCache(key).([]types.Location); ok {
 		return locations, nil
@@ -182,15 +149,11 @@ func (r *sqliteReader) readMonikerLocations(ctx context.Context, tableName, sche
 	return locations, nil
 }
 
-func (r *sqliteReader) Close() error {
-	return r.closer()
-}
-
-func (r *sqliteReader) getFromCache(key string) interface{} {
+func (r *sqliteDatabase) getFromCache(key string) interface{} {
 	val, _ := r.cache.Get(key)
 	return val
 }
 
-func (r *sqliteReader) makeCacheKey(parts ...string) string {
+func (r *sqliteDatabase) makeCacheKey(parts ...string) string {
 	return strings.Join(append(append([]string(nil), r.filename), parts...), ":")
 }

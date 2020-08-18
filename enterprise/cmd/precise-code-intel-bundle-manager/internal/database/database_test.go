@@ -373,7 +373,7 @@ func openTestDatabase(t *testing.T) Database {
 	if err != nil {
 		t.Fatalf("unexpected error opening database: %s", err)
 	}
-	t.Cleanup(func() { _ = db.Close })
+	t.Cleanup(func() { _ = db.Close(nil) })
 
 	// Wrap in observed, as that's how it's used in production
 	return NewObserved(db, filename, &observation.TestContext)

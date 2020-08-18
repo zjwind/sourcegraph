@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/keegancsmith/sqlf"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence"
-	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/serialization"
 	gobserializer "github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/serialization/gob"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/sqlite/batch"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/sqlite/migrate"
@@ -14,44 +13,14 @@ import (
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/types"
 )
 
-type sqliteWriter struct {
-	store      *store.Store
-	closer     func() error
-	serializer serialization.Serializer
-}
+var _ persistence.Writer = &sqliteDatabase{}
 
-var _ persistence.Writer = &sqliteWriter{}
-
+// assumes a database does not already exist at filename
 func NewWriter(ctx context.Context, filename string) (_ persistence.Writer, err error) {
-	store, closer, err := store.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			if closeErr := closer(); closeErr != nil {
-				err = multierror.Append(err, closeErr)
-			}
-		}
-	}()
-
-	tx, err := store.Transact(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := createTables(ctx, tx); err != nil {
-		return nil, err
-	}
-
-	return &sqliteWriter{
-		store:      tx,
-		closer:     closer,
-		serializer: gobserializer.New(),
-	}, nil
+	return NewDatabase(ctx, filename, nil)
 }
 
-func (w *sqliteWriter) WriteMeta(ctx context.Context, metaData types.MetaData) error {
+func (w *sqliteDatabase) WriteMeta(ctx context.Context, metaData types.MetaData) error {
 	queries := []*sqlf.Query{
 		sqlf.Sprintf("INSERT INTO schema_version (version) VALUES (%s)", migrate.CurrentSchemaVersion),
 		sqlf.Sprintf("INSERT INTO meta (num_result_chunks) VALUES (%s)", metaData.NumResultChunks),
@@ -66,30 +35,20 @@ func (w *sqliteWriter) WriteMeta(ctx context.Context, metaData types.MetaData) e
 	return nil
 }
 
-func (w *sqliteWriter) WriteDocuments(ctx context.Context, documents map[string]types.DocumentData) error {
+func (w *sqliteDatabase) WriteDocuments(ctx context.Context, documents map[string]types.DocumentData) error {
 	return batch.WriteDocuments(ctx, w.store, "documents", w.serializer, documents)
 }
 
-func (w *sqliteWriter) WriteResultChunks(ctx context.Context, resultChunks map[int]types.ResultChunkData) error {
+func (w *sqliteDatabase) WriteResultChunks(ctx context.Context, resultChunks map[int]types.ResultChunkData) error {
 	return batch.WriteResultChunks(ctx, w.store, "result_chunks", w.serializer, resultChunks)
 }
 
-func (w *sqliteWriter) WriteDefinitions(ctx context.Context, monikerLocations []types.MonikerLocations) error {
+func (w *sqliteDatabase) WriteDefinitions(ctx context.Context, monikerLocations []types.MonikerLocations) error {
 	return batch.WriteMonikerLocations(ctx, w.store, "definitions", w.serializer, monikerLocations)
 }
 
-func (w *sqliteWriter) WriteReferences(ctx context.Context, monikerLocations []types.MonikerLocations) error {
+func (w *sqliteDatabase) WriteReferences(ctx context.Context, monikerLocations []types.MonikerLocations) error {
 	return batch.WriteMonikerLocations(ctx, w.store, "references", w.serializer, monikerLocations)
-}
-
-func (w *sqliteWriter) Close(err error) error {
-	err = w.store.Done(err)
-
-	if closeErr := w.closer(); closeErr != nil {
-		err = multierror.Append(err, closeErr)
-	}
-
-	return nil
 }
 
 func createTables(ctx context.Context, store *store.Store) error {
