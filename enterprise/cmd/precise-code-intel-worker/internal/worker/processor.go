@@ -117,9 +117,9 @@ func (p *processor) Process(ctx context.Context, store store.Store, upload store
 		return false, err
 	}
 
-	var patchBaseID *int
-	if upload.PatchBaseCommit != nil {
-		patchBaseDump, exists, err := store.GetDumpForCommit(ctx, upload.RepositoryID, *upload.PatchBaseCommit, upload.Indexer, upload.Root)
+	var baseID *int
+	if upload.BaseCommit != nil {
+		baseDump, exists, err := store.GetDumpForCommit(ctx, upload.RepositoryID, *upload.BaseCommit, upload.Indexer, upload.Root)
 		if err != nil {
 			return false, err
 		}
@@ -130,12 +130,12 @@ func (p *processor) Process(ctx context.Context, store store.Store, upload store
 		}
 
 		if exists {
-			patchBaseID = &patchBaseDump.ID
+			baseID = &baseDump.ID
 		}
 	}
 
 	// Send converted database file to bundle manager
-	if err := p.sendDB(ctx, upload.ID, filepath.Join(tempDir, "sqlite.db"), patchBaseID); err != nil {
+	if err := p.sendDB(ctx, upload.ID, upload.Commit, filepath.Join(tempDir, "sqlite.db"), baseID, upload.BaseCommit); err != nil {
 		return false, err
 	}
 
@@ -236,11 +236,11 @@ func (p *processor) updateXrepoData(ctx context.Context, store store.Store, uplo
 	return nil
 }
 
-func (p *processor) sendDB(ctx context.Context, uploadID int, tempDir string, patchBaseID *int) (err error) {
+func (p *processor) sendDB(ctx context.Context, uploadID int, commit, tempDir string, baseID *int, baseCommit *string) (err error) {
 	ctx, endOperation := p.metrics.SendDBOperation.With(ctx, &err, observation.Args{})
 	defer endOperation(1, observation.Args{})
 
-	if err := p.bundleManagerClient.SendDB(ctx, uploadID, tempDir, patchBaseID); err != nil {
+	if err := p.bundleManagerClient.SendDB(ctx, uploadID, commit, tempDir, baseID, baseCommit); err != nil {
 		return errors.Wrap(err, "bundleManager.SendDB")
 	}
 

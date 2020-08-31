@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/bundles/persistence/cache"
+	"github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/gitserver"
 )
 
-func MergeDBs(ctx context.Context, baseBundleFile, patchBundleFile, resultBundleFile string) error {
+func MergeDBs(ctx context.Context, baseBundleFile, patchBundleFile, resultBundleFile, baseCommit, commit string) error {
 	tempDir, err := ioutil.TempDir("","")
 	if err != nil {
 		return err
@@ -41,6 +42,7 @@ func MergeDBs(ctx context.Context, baseBundleFile, patchBundleFile, resultBundle
 	cache, err := cache.NewDataCache(1)
 	tempBundleDB, err := NewDatabase(ctx, tempBundleFile, cache)
 	patchBundleDB, err := NewReader(ctx, patchBundleFile, cache)
+
 	err = tempBundleDB.PatchDatabase(ctx, patchBundleDB)
 
 	return os.Rename(tempBundleFile, resultBundleFile)

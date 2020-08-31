@@ -126,9 +126,14 @@ func (s *Server) handlePostDatabasePart(w http.ResponseWriter, r *http.Request) 
 
 // POST /dbs/{id:[0-9]+}/stitch{,?patchBaseID=[0-9]+}
 func (s *Server) handlePostDatabaseStitch(w http.ResponseWriter, r *http.Request) {
-	var patchBaseID *int
-	if hasQuery(r, "patchBaseID") {
-		*patchBaseID = getQueryInt(r, "patchBaseID")
+	commit := getQuery(r, "commit")
+	var baseID *int
+	if hasQuery(r, "baseID") {
+		*baseID = getQueryInt(r, "baseID")
+	}
+	var baseCommit *string
+	if hasQuery(r, "baseCommit") {
+		*baseCommit = getQuery(r, "baseCommit")
 	}
 
 	tempDir, err := ioutil.TempDir("","")
@@ -144,7 +149,7 @@ func (s *Server) handlePostDatabaseStitch(w http.ResponseWriter, r *http.Request
 	}
 
 	stitchFileName := resultFileName
-	if patchBaseID != nil {
+	if baseID != nil {
 		stitchFileName = filepath.Join(tempDir, "stitch")
 	}
 	if err := codeintelutils.StitchFiles(stitchFileName, makePartFilename, true, false); err != nil {
@@ -153,9 +158,9 @@ func (s *Server) handlePostDatabaseStitch(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if patchBaseID != nil {
-		baseBundle := paths.SQLiteDBFilename(s.bundleDir, int64(*patchBaseID))
-		sqlite.MergeDBs(r.Context(), baseBundle, stitchFileName, resultFileName)
+	if baseID != nil {
+		baseBundle := paths.SQLiteDBFilename(s.bundleDir, int64(*baseID))
+		sqlite.MergeDBs(r.Context(), baseBundle, stitchFileName, resultFileName, baseCommit, commit)
 	}
 
 	// Once we have a database, we no longer need the upload file

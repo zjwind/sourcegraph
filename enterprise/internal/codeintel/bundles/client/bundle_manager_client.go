@@ -61,7 +61,7 @@ type BundleManagerClient interface {
 	GetUpload(ctx context.Context, bundleID int) (io.ReadCloser, error)
 
 	// SendDB transfers a converted database to the bundle manager to be stored on disk.
-	SendDB(ctx context.Context, bundleID int, path string, patchBaseID *int) error
+	SendDB(ctx context.Context, bundleID int, commit, path string, baseID *int, baseCommit *string) error
 
 	// Exists determines if a file exists on disk for all the supplied identifiers.
 	Exists(ctx context.Context, bundleIDs []int) (map[int]bool, error)
@@ -244,8 +244,9 @@ func (c *bundleManagerClientImpl) getUploadChunk(ctx context.Context, w io.Write
 func (c *bundleManagerClientImpl) SendDB(
 	ctx context.Context,
 	bundleID int,
-	path string,
-	patchBaseID *int,
+	commit, path string,
+	baseID *int,
+	baseCommit *string,
 ) (err error) {
 	files, cleanup, err := codeintelutils.SplitFile(path, c.maxPayloadSizeBytes)
 	if err != nil {
@@ -262,9 +263,14 @@ func (c *bundleManagerClientImpl) SendDB(
 	}
 
 	qs := make(map[string]interface{})
-	if patchBaseID != nil {
-		qs["patchBaseID"] = *patchBaseID
+	qs["commit"] = commit
+	if baseID != nil {
+		qs["baseID"] = *baseID
 	}
+	if baseCommit != nil {
+		qs["baseCommit"] = *baseCommit
+	}
+
 	// We've uploaded all of our parts, signal the bundle manager to concatenate all
 	// of the part files together so it can begin to serve queries with the new database.
 	url, err := makeURL(c.bundleManagerURL, fmt.Sprintf("dbs/%d/stitch", bundleID), qs)

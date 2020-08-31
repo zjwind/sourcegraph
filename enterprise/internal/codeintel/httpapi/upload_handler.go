@@ -264,7 +264,7 @@ func (h *UploadHandler) handleEnqueueMultipartSetup(r *http.Request, uploadArgs 
 		State:           "uploading",
 		NumParts:        numParts,
 		UploadedParts:   nil,
-		PatchBaseCommit: uploadArgs.PatchBaseCommit,
+		BaseCommit: uploadArgs.BaseCommit,
 	})
 	if err != nil {
 		return nil, err
