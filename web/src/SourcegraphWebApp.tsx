@@ -37,7 +37,7 @@ import { RepoContainerRoute } from './repo/RepoContainer'
 import { RepoHeaderActionButton } from './repo/RepoHeader'
 import { RepoRevisionContainerRoute } from './repo/RepoRevisionContainer'
 import { LayoutRouteProps } from './routes'
-import { search } from './search/backend'
+import { search, searchStream } from './search/backend'
 import { SiteAdminAreaRoute } from './site-admin/SiteAdminArea'
 import { SiteAdminSideBarGroups } from './site-admin/SiteAdminSidebar'
 import { ThemePreference } from './theme'
@@ -400,7 +400,7 @@ class ColdSourcegraphWebApp extends React.Component<SourcegraphWebAppProps, Sour
                                     navbarSearchQueryState={this.state.navbarSearchQueryState}
                                     onNavbarQueryChange={this.onNavbarQueryChange}
                                     fetchHighlightedFileLines={fetchHighlightedFileLines}
-                                    searchRequest={search}
+                                    searchRequest={this.state.searchStreaming ? searchStream : search}
                                     // Extensions
                                     platformContext={this.platformContext}
                                     extensionsController={this.extensionsController}

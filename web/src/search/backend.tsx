@@ -1,4 +1,4 @@
-import { Observable, of, combineLatest, defer, from } from 'rxjs'
+import { Observable, of, combineLatest, defer, from, fromEvent } from 'rxjs'
 import { catchError, map, switchMap, publishReplay, refCount } from 'rxjs/operators'
 import { dataOrThrowErrors, gql } from '../../../shared/src/graphql/graphql'
 import * as GQL from '../../../shared/src/graphql/schema'
@@ -188,6 +188,44 @@ export function search(
             )
         )
     )
+}
+
+export function searchStream(
+    query: string,
+    version: string,
+    patternType: SearchPatternType,
+    versionContext: string | undefined,
+    extensionHostPromise: Promise<Remote<FlatExtHostAPI>>
+): Observable<GQL.ISearchResults | ErrorLike> {
+    // QUESTION: Does it make sense for query transformations like this to live in this function?
+    const transformedQuery = from(extensionHostPromise).pipe(
+        switchMap(extensionHost => wrapRemoteObservable(extensionHost.transformSearchQuery(query)))
+    )
+
+    // TODO seperate file/package/function which is responsible for speaking to the stream API and returning strongly typed values from the API.
+
+    return transformedQuery.pipe(
+        switchMap(query =>
+            defer(() => {
+                console.log('subscribed')
+                // TODO support encoding version, patternType and version context.
+                const event_ = new EventSource('/search/stream?q=' + encodeURIComponent(query))
+                // TODO how do we mark the returned observable as complete?
+                event_.addEventListener('done', () => event_.close())
+
+                return fromEvent(event_, 'filematches').pipe(
+                    map((value: Event): GQL.ISearchResults | ErrorLike => {
+                        // TODO translate into ISearchResults
+                        console.log('event', value)
+                        return { message: 'oh dear' }
+                    })
+                )
+            })
+        )
+    )
+    // fromEvent(event_, 'message').pipe(switchMap(query => {}))
+    // (event__: Event) => console.log('onmessage', query, event__)).add()
+    // event_.addEventListener('error', (event__: Event) => console.log('onerror', query, event__))
 }
 
 /**

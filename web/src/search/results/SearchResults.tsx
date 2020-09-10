@@ -219,7 +219,8 @@ export class SearchResults extends React.Component<SearchResultsProps, SearchRes
                 )
                 .subscribe(
                     newState => this.setState(newState as SearchResultsState),
-                    error => console.error(error)
+                    error => console.error(error),
+                    () => console.log('complete')
                 )
         )
 
