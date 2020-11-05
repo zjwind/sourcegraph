@@ -3,6 +3,9 @@ env:
 steps:
   - commands:
       - test/qa/test.sh
+    label: ':docker::arrow_right::chromium:'
+    agents:
+      queue: 'baremetal'
     plugins:
       - sourcegraph/vagrant#feature/initial-MVP:
           debug: true
@@ -10,3 +13,4 @@ steps:
           # split: false
           plugins:
             - vagrant-google
+
