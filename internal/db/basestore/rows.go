@@ -2,6 +2,8 @@ package basestore
 
 import (
 	"database/sql"
+
+	"github.com/sourcegraph/sourcegraph/internal/errutil"
 )
 
 // CloseRows closes the given rows object. The resulting error is a multierror
@@ -24,7 +26,7 @@ import (
 //
 //     things, err := ScanThings(store.Query(ctx, query))
 func CloseRows(rows *sql.Rows, err error) error {
-	return combineErrors(err, rows.Close(), rows.Err())
+	return errutil.Combine(err, rows.Close(), rows.Err())
 }
 
 // ScanStrings reads string values from the given row object.
