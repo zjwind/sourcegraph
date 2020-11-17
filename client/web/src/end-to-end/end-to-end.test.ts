@@ -1100,10 +1100,6 @@ describe('e2e test suite', () => {
                         '/github.com/sourcegraph/go-diff@3f415a150aec0685cb81b73cc201e762e075006d/-/blob/diff/parse.go#L19',
                     { waitUntil: 'domcontentloaded' }
                 )
-                await driver.page.waitForSelector('.nav-link[href*="https://github"]', {
-                    visible: true,
-                    timeout: 300000,
-                })
                 await retry(async () =>
                     expect(
                         await driver.page.evaluate(
@@ -1228,8 +1224,11 @@ describe('e2e test suite', () => {
 
             // Update the input value
             await driver.page.waitForSelector('#monaco-query-input', { visible: true })
-            await driver.page.keyboard.type('test repo:sourcegraph/jsonrpc2@c6c7b9aa99fb76ee5460ccd3912ba35d419d493d')
-
+                 await driver.replaceText({
+                selector: '#monaco-query-input',
+                newText: 'repo:sourcegraph/jsonrpc2@c6c7b9aa99fb76ee5460ccd3912ba35d419d493d test',
+                enterTextMethod: 'type',
+            })
             // TODO: test search scopes
 
             // Submit the search
