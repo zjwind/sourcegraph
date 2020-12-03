@@ -403,6 +403,7 @@ type ExternalService struct {
 	NextSyncAt      time.Time
 	NamespaceUserID int32
 	Unrestricted    bool // Whether access to repositories belong to this external service is unrestricted.
+	User            *User
 }
 
 // URN returns a unique resource identifier of this external service,

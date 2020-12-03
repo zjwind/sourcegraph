@@ -98,6 +98,13 @@ func (r *externalServiceResolver) Namespace() *graphql.ID {
 	return &userID
 }
 
+func (r *externalServiceResolver) User(ctx context.Context) (*UserResolver, error) {
+	if r.externalService.NamespaceUserID == 0 {
+		return nil, nil
+	}
+	return UserByIDInt32(ctx, r.externalService.NamespaceUserID)
+}
+
 func (r *externalServiceResolver) WebhookURL() (*string, error) {
 	r.webhookURLOnce.Do(func() {
 		parsed, err := extsvc.ParseConfig(r.externalService.Kind, r.externalService.Config)

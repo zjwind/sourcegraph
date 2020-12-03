@@ -177,7 +177,19 @@ func (s *SyncRegistry) HandleExternalServiceSync(es api.ExternalService) {
 	s.mu.Unlock()
 
 	if es.DeletedAt.IsZero() && !exists {
-		res := (types.ExternalService)(es)
+		res := types.ExternalService{
+			ID:              es.ID,
+			Kind:            es.Kind,
+			DisplayName:     es.DisplayName,
+			Config:          es.Config,
+			CreatedAt:       es.CreatedAt,
+			UpdatedAt:       es.UpdatedAt,
+			DeletedAt:       es.DeletedAt,
+			LastSyncAt:      es.LastSyncAt,
+			NextSyncAt:      es.NextSyncAt,
+			NamespaceUserID: es.NamespaceUserID,
+			Unrestricted:    es.Unrestricted,
+		}
 		s.Add(&res)
 	}
 

@@ -3766,6 +3766,10 @@ type ExternalService implements Node {
     not break the API and stay backwards compatible.
     """
     warning: String
+    """
+    The user that created this external service.
+    """
+    user: User
 }
 
 """
