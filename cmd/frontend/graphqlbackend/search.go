@@ -298,7 +298,7 @@ type searchResolver struct {
 
 	// resultChannel if non-nil will send all results we receive down it. See
 	// searchResolver.SetResultChannel
-	resultChannel chan<- []SearchResultResolver
+	resultChannel chan<- SearchResultEvent
 
 	// Cached resolveRepositories results.
 	reposMu  sync.Mutex
@@ -307,6 +307,13 @@ type searchResolver struct {
 
 	zoekt        *searchbackend.Zoekt
 	searcherURLs *endpoint.Map
+}
+
+// SeachResultEvent is sent for each batch of results found. See
+// searchResolver.SetResultChannel.
+type SearchResultEvent struct {
+	// Results is a slice of new results found. It is additive.
+	Results []SearchResultResolver
 }
 
 // SetResultChannel will send all results down c.
@@ -318,7 +325,7 @@ type searchResolver struct {
 // us to stream out things like dynamic filters or take into account
 // AND/OR. However, streaming is behind a feature flag for now, so this is to
 // make it visible in the browser.
-func (r *searchResolver) SetResultChannel(c chan<- []SearchResultResolver) {
+func (r *searchResolver) SetResultChannel(c chan<- SearchResultEvent) {
 	r.resultChannel = c
 }
 

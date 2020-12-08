@@ -1861,9 +1861,21 @@ func (r *searchResolver) doResults(ctx context.Context, forceOnlyResultType stri
 	}
 
 	agg := aggregator{
-		resultChannel: r.resultChannel,
-		common:        searchResultsCommon{maxResultsCount: r.maxResults()},
-		fileMatches:   make(map[string]*FileMatchResolver),
+		common:      searchResultsCommon{maxResultsCount: r.maxResults()},
+		fileMatches: make(map[string]*FileMatchResolver),
+	}
+
+	if r.resultChannel != nil {
+		c := make(chan []SearchResultResolver, cap(r.resultChannel))
+		defer close(c)
+		agg.resultChannel = c
+		go func() {
+			for results := range c {
+				r.resultChannel <- SearchResultEvent{
+					Results: results,
+				}
+			}
+		}()
 	}
 
 	isFileOrPath := func() bool {
