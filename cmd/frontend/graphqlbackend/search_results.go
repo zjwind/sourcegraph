@@ -1919,9 +1919,24 @@ func (r *searchResolver) doResults(ctx context.Context, forceOnlyResultType stri
 	if alertResult != nil {
 		return alertResult, nil
 	}
-	args.RepoPromise.Resolve(resolved.repoRevs)
 
-	agg.report(ctx, nil, &searchResultsCommon{excluded: resolved.excludedRepos}, nil)
+	// Send down our first bit of progress.
+	{
+		repos := make([]*types.Repo, len(resolved.repoRevs))
+		for i, repoRev := range resolved.repoRevs {
+			repos[i] = repoRev.Repo
+		}
+
+		agg.report(ctx, nil, &searchResultsCommon{
+			repos:    repos,
+			excluded: resolved.excludedRepos,
+		}, nil)
+	}
+
+	// Resolve repo promise so searches waiting on it can proceed. We do this
+	// after reporting the above progress to ensure we don't get search
+	// results before the above reporting.
+	args.RepoPromise.Resolve(resolved.repoRevs)
 
 	// Apply search limits and generate warnings before firing off workers.
 	// This currently limits diff and commit search to a set number of
