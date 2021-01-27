@@ -14,6 +14,7 @@ import (
 
 	searchrepos "github.com/sourcegraph/sourcegraph/cmd/frontend/internal/search/repos"
 	"github.com/sourcegraph/sourcegraph/internal/api"
+	"github.com/sourcegraph/sourcegraph/internal/database/dbtesting"
 	"github.com/sourcegraph/sourcegraph/internal/search"
 	"github.com/sourcegraph/sourcegraph/internal/search/query"
 	"github.com/sourcegraph/sourcegraph/internal/types"
@@ -157,6 +158,8 @@ func TestAddQueryRegexpField(t *testing.T) {
 }
 
 func TestAlertForDiffCommitSearchLimits(t *testing.T) {
+	stores := newStores(dbtesting.GetDB(t))
+
 	cases := []struct {
 		name                 string
 		multiErr             *multierror.Error
@@ -180,7 +183,7 @@ func TestAlertForDiffCommitSearchLimits(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		haveMultiErr, alert := alertForDiffCommitSearch(test.multiErr)
+		haveMultiErr, alert := alertForDiffCommitSearch(stores, test.multiErr)
 		if haveMultiErr != nil {
 			t.Fatalf("the alert should have been filtered from the multierror")
 		}
@@ -192,6 +195,8 @@ func TestAlertForDiffCommitSearchLimits(t *testing.T) {
 }
 
 func TestErrorToAlertStructuralSearch(t *testing.T) {
+	stores := newStores(dbtesting.GetDB(t))
+
 	cases := []struct {
 		name           string
 		errors         []error
@@ -223,7 +228,7 @@ func TestErrorToAlertStructuralSearch(t *testing.T) {
 			Errors:      test.errors,
 			ErrorFormat: multierror.ListFormatFunc,
 		}
-		haveMultiErr, haveAlert := alertForStructuralSearch(multiErr)
+		haveMultiErr, haveAlert := alertForStructuralSearch(stores, multiErr)
 
 		if !reflect.DeepEqual(haveMultiErr.Errors, test.wantErrors) {
 			t.Fatalf("test %s, have errors: %q, want: %q", test.name, haveMultiErr.Errors, test.wantErrors)

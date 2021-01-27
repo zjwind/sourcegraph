@@ -7,15 +7,17 @@ import (
 )
 
 type hunkResolver struct {
-	repo *RepositoryResolver
-	hunk *git.Hunk
+	stores *stores
+	repo   *RepositoryResolver
+	hunk   *git.Hunk
 }
 
 func (r *hunkResolver) Author() signatureResolver {
 	return signatureResolver{
 		person: &PersonResolver{
-			name:  r.hunk.Author.Name,
-			email: r.hunk.Author.Email,
+			stores: r.stores,
+			name:   r.hunk.Author.Name,
+			email:  r.hunk.Author.Email,
 		},
 		date: r.hunk.Author.Date,
 	}
@@ -46,5 +48,5 @@ func (r *hunkResolver) Message() string {
 }
 
 func (r *hunkResolver) Commit(ctx context.Context) (*GitCommitResolver, error) {
-	return toGitCommitResolver(r.repo, r.hunk.CommitID, nil), nil
+	return toGitCommitResolver(r.repo, r.stores, r.hunk.CommitID, nil), nil
 }

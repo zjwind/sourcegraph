@@ -32,6 +32,7 @@ type RepositoryResolver struct {
 	hydration sync.Once
 	err       error
 
+	stores *stores
 	// innerRepo may only contain ID and Name information.
 	// To access any other repo information, use repo() instead.
 	innerRepo *types.Repo
@@ -45,13 +46,11 @@ type RepositoryResolver struct {
 	rev string
 }
 
-func NewRepositoryResolver(repo *types.Repo) *RepositoryResolver {
-	return &RepositoryResolver{innerRepo: repo}
+func NewRepositoryResolver(stores *stores, repo *types.Repo) *RepositoryResolver {
+	return &RepositoryResolver{stores: stores, innerRepo: repo}
 }
 
-var RepositoryByID = repositoryByID
-
-func repositoryByID(ctx context.Context, id graphql.ID) (*RepositoryResolver, error) {
+func (r *schemaResolver) repositoryByID(ctx context.Context, id graphql.ID) (*RepositoryResolver, error) {
 	var repoID api.RepoID
 	if err := relay.UnmarshalSpec(id, &repoID); err != nil {
 		return nil, err
@@ -163,7 +162,7 @@ func (r *RepositoryResolver) Commit(ctx context.Context, args *RepositoryCommitA
 }
 
 func (r *RepositoryResolver) CommitFromID(ctx context.Context, args *RepositoryCommitArgs, commitID api.CommitID) (*GitCommitResolver, error) {
-	resolver := toGitCommitResolver(r, commitID, nil)
+	resolver := toGitCommitResolver(r, r.stores, commitID, nil)
 	if args.InputRevspec != nil {
 		resolver.inputRev = args.InputRevspec
 	} else {

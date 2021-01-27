@@ -177,7 +177,7 @@ func (r *searchResolver) paginatedResults(ctx context.Context) (result *SearchRe
 	})
 
 	common := streaming.Stats{}
-	cursor, results, fileCommon, err := paginatedSearchFilesInRepos(ctx, &args, r.pagination)
+	cursor, results, fileCommon, err := paginatedSearchFilesInRepos(ctx, r.stores, &args, r.pagination)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,9 @@ func (r *searchResolver) paginatedResults(ctx context.Context) (result *SearchRe
 	tr.LazyPrintf("results=%d %s", len(results), &common)
 
 	// Alert is a potential alert shown to the user.
-	var alert *searchAlert
+	alert := &searchAlert{
+		stores: r.stores,
+	}
 
 	if len(resolved.MissingRepoRevs) > 0 {
 		alert = alertForMissingRepoRevs(r.patternType, resolved.MissingRepoRevs)
@@ -240,7 +242,7 @@ func repoIsLess(i, j *types.RepoName) bool {
 //    top of the penalty we incur from the larger `count:` mentioned in point
 //    2 above (in the worst case scenario).
 //
-func paginatedSearchFilesInRepos(ctx context.Context, args *search.TextParameters, pagination *searchPaginationInfo) (*searchCursor, []SearchResultResolver, *streaming.Stats, error) {
+func paginatedSearchFilesInRepos(ctx context.Context, stores *stores, args *search.TextParameters, pagination *searchPaginationInfo) (*searchCursor, []SearchResultResolver, *streaming.Stats, error) {
 	repos, err := getRepos(ctx, args.RepoPromise)
 	if err != nil {
 		return nil, nil, nil, err
@@ -256,7 +258,7 @@ func paginatedSearchFilesInRepos(ctx context.Context, args *search.TextParameter
 	return plan.execute(ctx, func(batch []*search.RepositoryRevisions) ([]SearchResultResolver, *streaming.Stats, error) {
 		batchArgs := *args
 		batchArgs.RepoPromise = (&search.Promise{}).Resolve(batch)
-		fileResults, fileCommon, err := searchFilesInReposBatch(ctx, &batchArgs)
+		fileResults, fileCommon, err := searchFilesInReposBatch(ctx, stores, &batchArgs)
 		// Timeouts are reported through Stats so don't report an error for them
 		if err != nil && !(err == context.DeadlineExceeded || err == context.Canceled) {
 			return nil, nil, err

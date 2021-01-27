@@ -36,6 +36,8 @@ import (
 )
 
 func TestIndexedSearch(t *testing.T) {
+	stores := newStores(dbtesting.GetDB(t))
+
 	zeroTimeoutCtx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	type args struct {
@@ -301,7 +303,7 @@ func TestIndexedSearch(t *testing.T) {
 				},
 			}
 
-			indexed, err := newIndexedSearchRequest(context.Background(), args, textRequest)
+			indexed, err := newIndexedSearchRequest(context.Background(), stores, args, textRequest)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1032,7 +1034,7 @@ func TestZoektFileMatchToSymbolResults(t *testing.T) {
 
 	repo := &RepositoryResolver{innerRepo: &types.Repo{Name: "foo"}}
 
-	results := zoektFileMatchToSymbolResults(repo, "master", file)
+	results := zoektFileMatchToSymbolResults(repo, newStores(dbtesting.GetDB(t)), "master", file)
 	var symbols []protocol.Symbol
 	for _, res := range results {
 		// Check the fields which are not specific to the symbol

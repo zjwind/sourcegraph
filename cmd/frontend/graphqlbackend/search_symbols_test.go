@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
+
+	"github.com/sourcegraph/sourcegraph/internal/database/dbtesting"
 	"github.com/sourcegraph/sourcegraph/internal/gituri"
 	"github.com/sourcegraph/sourcegraph/internal/symbols/protocol"
 	"github.com/sourcegraph/sourcegraph/internal/types"
@@ -14,6 +16,8 @@ import (
 )
 
 func TestMakeFileMatchURIFromSymbol(t *testing.T) {
+	stores := newStores(dbtesting.GetDB(t))
+
 	symbol := protocol.Symbol{
 		Name:    "test",
 		Path:    "foo/bar",
@@ -25,6 +29,7 @@ func TestMakeFileMatchURIFromSymbol(t *testing.T) {
 
 	commit := toGitCommitResolver(
 		&RepositoryResolver{innerRepo: &types.Repo{ID: 1, Name: "repo"}},
+		stores,
 		"c1",
 		&git.Commit{ID: "c1", Author: gitSignatureWithDate},
 	)

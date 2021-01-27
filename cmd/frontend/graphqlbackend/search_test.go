@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/conf"
 	"github.com/sourcegraph/sourcegraph/internal/database"
+	"github.com/sourcegraph/sourcegraph/internal/database/dbtesting"
 	"github.com/sourcegraph/sourcegraph/internal/search"
 	"github.com/sourcegraph/sourcegraph/internal/search/query"
 	querytypes "github.com/sourcegraph/sourcegraph/internal/search/query/types"
@@ -336,13 +337,15 @@ func TestExactlyOneRepo(t *testing.T) {
 }
 
 func TestQuoteSuggestions(t *testing.T) {
+	stores := newStores(dbtesting.GetDB(t))
+
 	t.Run("regex error", func(t *testing.T) {
 		raw := "*"
 		_, err := query.Process(raw, query.SearchTypeRegex)
 		if err == nil {
 			t.Fatalf("error returned from query.Process(%q) is nil", raw)
 		}
-		alert := alertForQuery(raw, err)
+		alert := alertForQuery(stores, raw, err)
 		if !strings.Contains(strings.ToLower(alert.title), "regexp") {
 			t.Errorf("title is '%s', want it to contain 'regexp'", alert.title)
 		}
@@ -365,7 +368,7 @@ func TestQuoteSuggestions(t *testing.T) {
 		if err == nil {
 			t.Fatalf("error returned from query.Process(%q) is nil", raw)
 		}
-		alert := alertForQuery(raw, err)
+		alert := alertForQuery(stores, raw, err)
 		if strings.Contains(strings.ToLower(alert.title), "regexp") {
 			t.Errorf("title is '%s', want it not to contain 'regexp'", alert.title)
 		}
@@ -380,7 +383,7 @@ func TestQuoteSuggestions(t *testing.T) {
 		if err == nil {
 			t.Fatal("query.Process failed to detect the invalid regex in the f: field")
 		}
-		alert := alertForQuery(raw, err)
+		alert := alertForQuery(stores, raw, err)
 		if len(alert.proposedQueries) != 1 {
 			t.Fatalf("got %d proposed queries (%v), want exactly 1", len(alert.proposedQueries), alert.proposedQueries)
 		}
@@ -431,6 +434,8 @@ func TestEueryForStableResults(t *testing.T) {
 }
 
 func TestVersionContext(t *testing.T) {
+	stores := newStores(dbtesting.GetDB(t))
+
 	conf.Mock(&conf.Unified{
 		SiteConfiguration: schema.SiteConfiguration{
 			ExperimentalFeatures: &schema.ExperimentalFeatures{
@@ -544,6 +549,7 @@ func TestVersionContext(t *testing.T) {
 			}
 
 			resolver := searchResolver{
+				stores:         stores,
 				query:          qinfo,
 				versionContext: &tc.versionContext,
 				userSettings:   &schema.Settings{},

@@ -49,7 +49,7 @@ var mockSearchSymbols func(ctx context.Context, args *search.TextParameters, lim
 // it can be used for both search suggestions and search results
 //
 // May return partial results and an error
-func searchSymbols(ctx context.Context, args *search.TextParameters, limit int) (res []*FileMatchResolver, common *streaming.Stats, err error) {
+func searchSymbols(ctx context.Context, stores *stores, args *search.TextParameters, limit int) (res []*FileMatchResolver, common *streaming.Stats, err error) {
 	if mockSearchSymbols != nil {
 		return mockSearchSymbols(ctx, args, limit)
 	}
@@ -74,7 +74,7 @@ func searchSymbols(ctx context.Context, args *search.TextParameters, limit int) 
 
 	common = &streaming.Stats{}
 
-	indexed, err := newIndexedSearchRequest(ctx, args, symbolRequest)
+	indexed, err := newIndexedSearchRequest(ctx, stores, args, symbolRequest)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -157,7 +157,7 @@ func searchSymbols(ctx context.Context, args *search.TextParameters, limit int) 
 		run.Acquire()
 		goroutine.Go(func() {
 			defer run.Release()
-			repoSymbols, repoErr := searchSymbolsInRepo(ctx, repoRevs, args.PatternInfo, limit)
+			repoSymbols, repoErr := searchSymbolsInRepo(ctx, stores, repoRevs, args.PatternInfo, limit)
 			if repoErr != nil {
 				tr.LogFields(otlog.String("repo", string(repoRevs.Repo.Name)), otlog.String("repoErr", repoErr.Error()), otlog.Bool("timeout", errcode.IsTimeout(repoErr)), otlog.Bool("temporary", errcode.IsTemporary(repoErr)))
 			}
@@ -218,7 +218,7 @@ func symbolCount(fmrs []*FileMatchResolver) int {
 	return nsym
 }
 
-func searchSymbolsInRepo(ctx context.Context, repoRevs *search.RepositoryRevisions, patternInfo *search.TextPatternInfo, limit int) (res []*FileMatchResolver, err error) {
+func searchSymbolsInRepo(ctx context.Context, stores *stores, repoRevs *search.RepositoryRevisions, patternInfo *search.TextPatternInfo, limit int) (res []*FileMatchResolver, err error) {
 	span, ctx := ot.StartSpanFromContext(ctx, "Search symbols in repo")
 	defer func() {
 		if err != nil {
@@ -245,8 +245,9 @@ func searchSymbolsInRepo(ctx context.Context, repoRevs *search.RepositoryRevisio
 		return nil, err
 	}
 
-	repoResolver := NewRepositoryResolver(repoRevs.Repo.ToRepo())
+	repoResolver := NewRepositoryResolver(stores, repoRevs.Repo.ToRepo())
 	commitResolver := &GitCommitResolver{
+		stores:       stores,
 		repoResolver: repoResolver,
 		oid:          GitObjectID(commitID),
 		inputRev:     &inputRev,

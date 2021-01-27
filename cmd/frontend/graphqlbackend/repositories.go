@@ -62,6 +62,7 @@ func (r *schemaResolver) Repositories(args *struct {
 	}
 	args.ConnectionArgs.Set(&opt.LimitOffset)
 	return &repositoryConnectionResolver{
+		stores:     r.stores,
 		opt:        opt,
 		cloned:     args.Cloned,
 		notCloned:  args.NotCloned,
@@ -83,6 +84,7 @@ type RepositoryConnectionResolver interface {
 var _ RepositoryConnectionResolver = &repositoryConnectionResolver{}
 
 type repositoryConnectionResolver struct {
+	stores     *stores
 	opt        database.ReposListOptions
 	cloned     bool
 	notCloned  bool
@@ -199,7 +201,7 @@ func (r *repositoryConnectionResolver) Nodes(ctx context.Context) ([]*Repository
 			break
 		}
 
-		resolvers = append(resolvers, &RepositoryResolver{innerRepo: repo})
+		resolvers = append(resolvers, &RepositoryResolver{stores: r.stores, innerRepo: repo})
 	}
 	return resolvers, nil
 }
@@ -283,7 +285,7 @@ func (r *schemaResolver) SetRepositoryEnabled(ctx context.Context, args *struct 
 		return nil, err
 	}
 
-	repo, err := repositoryByID(ctx, args.Repository)
+	repo, err := r.repositoryByID(ctx, args.Repository)
 	if err != nil {
 		return nil, err
 	}
@@ -313,14 +315,14 @@ func repoNamesToStrings(repoNames []api.RepoName) []string {
 	return strings
 }
 
-func toRepositoryResolvers(repos []*types.RepoName) []*RepositoryResolver {
+func toRepositoryResolvers(stores *stores, repos []*types.RepoName) []*RepositoryResolver {
 	if len(repos) == 0 {
 		return []*RepositoryResolver{}
 	}
 
 	resolvers := make([]*RepositoryResolver, len(repos))
 	for i := range repos {
-		resolvers[i] = &RepositoryResolver{innerRepo: repos[i].ToRepo()}
+		resolvers[i] = &RepositoryResolver{stores: stores, innerRepo: repos[i].ToRepo()}
 	}
 
 	return resolvers

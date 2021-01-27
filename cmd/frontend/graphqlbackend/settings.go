@@ -13,6 +13,7 @@ import (
 )
 
 type settingsResolver struct {
+	stores   *stores
 	subject  *settingsSubject
 	settings *api.Settings
 	user     *types.User
@@ -50,7 +51,7 @@ func (o *settingsResolver) Author(ctx context.Context) (*UserResolver, error) {
 			return nil, err
 		}
 	}
-	return &UserResolver{o.user}, nil
+	return NewUserResolver(o.stores, o.user), nil
 }
 
 var globalSettingsAllowEdits, _ = strconv.ParseBool(env.Get("GLOBAL_SETTINGS_ALLOW_EDITS", "false", "When GLOBAL_SETTINGS_FILE is in use, allow edits in the application to be made which will be overwritten on next process restart"))

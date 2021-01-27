@@ -1,16 +1,17 @@
 package graphqlbackend
 
 type repositoryContributorResolver struct {
-	name  string
-	email string
-	count int32
+	stores *stores
+	name   string
+	email  string
+	count  int32
 
 	repo *RepositoryResolver
 	args repositoryContributorsArgs
 }
 
 func (r *repositoryContributorResolver) Person() *PersonResolver {
-	return &PersonResolver{name: r.name, email: r.email}
+	return &PersonResolver{stores: r.stores, name: r.name, email: r.email}
 }
 
 func (r *repositoryContributorResolver) Count() int32 { return r.count }
@@ -25,6 +26,7 @@ func (r *repositoryContributorResolver) Commits(args *struct {
 		revisionRange = *r.args.RevisionRange
 	}
 	return &gitCommitConnectionResolver{
+		stores:        r.stores,
 		revisionRange: revisionRange,
 		path:          r.args.Path,
 		author:        &r.email, // TODO(sqs): support when contributor resolves to user, and user has multiple emails

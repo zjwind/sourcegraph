@@ -19,7 +19,7 @@ var repoIcon = "data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl
 //
 // For a repository to match a query, the repository's name must match all of the repo: patterns AND the
 // default patterns (i.e., the patterns that are not prefixed with any search field).
-func searchRepositories(ctx context.Context, args *search.TextParameters, limit int32) (res []SearchResultResolver, common *streaming.Stats, err error) {
+func searchRepositories(ctx context.Context, stores *stores, args *search.TextParameters, limit int32) (res []SearchResultResolver, common *streaming.Stats, err error) {
 	if mockSearchRepositories != nil {
 		return mockSearchRepositories(args)
 	}
@@ -69,7 +69,7 @@ func searchRepositories(ctx context.Context, args *search.TextParameters, limit 
 
 	// Filter the repos if there is a repohasfile: or -repohasfile field.
 	if len(args.PatternInfo.FilePatternsReposMustExclude) > 0 || len(args.PatternInfo.FilePatternsReposMustInclude) > 0 {
-		repos, err = reposToAdd(ctx, args, repos)
+		repos, err = reposToAdd(ctx, stores, args, repos)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -91,7 +91,7 @@ func searchRepositories(ctx context.Context, args *search.TextParameters, limit 
 			revs = r.RevSpecs()
 		}
 		for _, rev := range revs {
-			results = append(results, &RepositoryResolver{innerRepo: r.Repo.ToRepo(), icon: repoIcon, rev: rev})
+			results = append(results, &RepositoryResolver{stores: stores, innerRepo: r.Repo.ToRepo(), icon: repoIcon, rev: rev})
 		}
 	}
 
@@ -160,7 +160,7 @@ func matchRepos(pattern *regexp.Regexp, resolved []*search.RepositoryRevisions) 
 
 // reposToAdd determines which repositories should be included in the result set based on whether they fit in the subset
 // of repostiories specified in the query's `repohasfile` and `-repohasfile` fields if they exist.
-func reposToAdd(ctx context.Context, args *search.TextParameters, repos []*search.RepositoryRevisions) ([]*search.RepositoryRevisions, error) {
+func reposToAdd(ctx context.Context, stores *stores, args *search.TextParameters, repos []*search.RepositoryRevisions) ([]*search.RepositoryRevisions, error) {
 	matchingIDs := make(map[api.RepoID]bool)
 	if len(args.PatternInfo.FilePatternsReposMustInclude) > 0 {
 		for _, pattern := range args.PatternInfo.FilePatternsReposMustInclude {
@@ -177,7 +177,7 @@ func reposToAdd(ctx context.Context, args *search.TextParameters, repos []*searc
 			newArgs.RepoPromise = (&search.Promise{}).Resolve(repos)
 			newArgs.Query = q
 			newArgs.UseFullDeadline = true
-			matches, _, err := searchFilesInReposBatch(ctx, &newArgs)
+			matches, _, err := searchFilesInReposBatch(ctx, stores, &newArgs)
 			if err != nil {
 				return nil, err
 			}
@@ -205,7 +205,7 @@ func reposToAdd(ctx context.Context, args *search.TextParameters, repos []*searc
 			newArgs.RepoPromise = rp
 			newArgs.Query = q
 			newArgs.UseFullDeadline = true
-			matches, _, err := searchFilesInReposBatch(ctx, &newArgs)
+			matches, _, err := searchFilesInReposBatch(ctx, stores, &newArgs)
 			if err != nil {
 				return nil, err
 			}

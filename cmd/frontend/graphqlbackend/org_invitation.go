@@ -11,23 +11,24 @@ import (
 
 // organizationInvitationResolver implements the GraphQL type OrganizationInvitation.
 type organizationInvitationResolver struct {
-	v *database.OrgInvitation
+	stores *stores
+	v      *database.OrgInvitation
 }
 
-func orgInvitationByID(ctx context.Context, id graphql.ID) (*organizationInvitationResolver, error) {
+func orgInvitationByID(ctx context.Context, stores *stores, id graphql.ID) (*organizationInvitationResolver, error) {
 	orgInvitationID, err := unmarshalOrgInvitationID(id)
 	if err != nil {
 		return nil, err
 	}
-	return orgInvitationByIDInt64(ctx, orgInvitationID)
+	return orgInvitationByIDInt64(ctx, stores, orgInvitationID)
 }
 
-func orgInvitationByIDInt64(ctx context.Context, id int64) (*organizationInvitationResolver, error) {
-	orgInvitation, err := database.GlobalOrgInvitations.GetByID(ctx, id)
+func orgInvitationByIDInt64(ctx context.Context, stores *stores, id int64) (*organizationInvitationResolver, error) {
+	orgInvitation, err := stores.orgInvitations.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return &organizationInvitationResolver{v: orgInvitation}, nil
+	return &organizationInvitationResolver{stores: stores, v: orgInvitation}, nil
 }
 
 func (r *organizationInvitationResolver) ID() graphql.ID {
@@ -42,15 +43,15 @@ func unmarshalOrgInvitationID(id graphql.ID) (orgInvitationID int64, err error) 
 }
 
 func (r *organizationInvitationResolver) Organization(ctx context.Context) (*OrgResolver, error) {
-	return OrgByIDInt32(ctx, r.v.OrgID)
+	return OrgByIDInt32(ctx, r.stores, r.v.OrgID)
 }
 
 func (r *organizationInvitationResolver) Sender(ctx context.Context) (*UserResolver, error) {
-	return UserByIDInt32(ctx, r.v.SenderUserID)
+	return UserByIDInt32(ctx, r.stores, r.v.SenderUserID)
 }
 
 func (r *organizationInvitationResolver) Recipient(ctx context.Context) (*UserResolver, error) {
-	return UserByIDInt32(ctx, r.v.RecipientUserID)
+	return UserByIDInt32(ctx, r.stores, r.v.RecipientUserID)
 }
 func (r *organizationInvitationResolver) CreatedAt() DateTime { return DateTime{Time: r.v.CreatedAt} }
 func (r *organizationInvitationResolver) NotifiedAt() *DateTime {

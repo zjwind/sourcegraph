@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/sourcegraph/go-diff/diff"
+
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/graphqlbackend/graphqlutil"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/highlight"
@@ -56,7 +57,7 @@ type FileDiff interface {
 	InternalID() string
 }
 
-func NewRepositoryComparison(ctx context.Context, r *RepositoryResolver, args *RepositoryComparisonInput) (*RepositoryComparisonResolver, error) {
+func NewRepositoryComparison(ctx context.Context, stores *stores, r *RepositoryResolver, args *RepositoryComparisonInput) (*RepositoryComparisonResolver, error) {
 	var baseRevspec, headRevspec string
 	if args.Base == nil {
 		baseRevspec = "HEAD"
@@ -85,7 +86,7 @@ func NewRepositoryComparison(ctx context.Context, r *RepositoryResolver, args *R
 			return nil, err
 		}
 
-		return toGitCommitResolver(r, commitID, nil), nil
+		return toGitCommitResolver(r, stores, commitID, nil), nil
 	}
 
 	head, err := getCommit(ctx, r.innerRepo.Name, headRevspec)
@@ -109,6 +110,7 @@ func NewRepositoryComparison(ctx context.Context, r *RepositoryResolver, args *R
 	}
 
 	return &RepositoryComparisonResolver{
+		stores:      stores,
 		baseRevspec: baseRevspec,
 		headRevspec: headRevspec,
 		base:        base,
@@ -118,10 +120,11 @@ func NewRepositoryComparison(ctx context.Context, r *RepositoryResolver, args *R
 }
 
 func (r *RepositoryResolver) Comparison(ctx context.Context, args *RepositoryComparisonInput) (*RepositoryComparisonResolver, error) {
-	return NewRepositoryComparison(ctx, r, args)
+	return NewRepositoryComparison(ctx, r.stores, r, args)
 }
 
 type RepositoryComparisonResolver struct {
+	stores                   *stores
 	baseRevspec, headRevspec string
 	base, head               *GitCommitResolver
 	repo                     *RepositoryResolver
@@ -155,6 +158,7 @@ func (r *RepositoryComparisonResolver) Commits(
 	args *graphqlutil.ConnectionArgs,
 ) *gitCommitConnectionResolver {
 	return &gitCommitConnectionResolver{
+		stores:        r.stores,
 		revisionRange: string(r.baseRevspec) + ".." + string(r.headRevspec),
 		first:         args.First,
 		repo:          r.repo,

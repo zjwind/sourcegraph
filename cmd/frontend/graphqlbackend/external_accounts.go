@@ -42,7 +42,7 @@ func (r *siteResolver) ExternalAccounts(ctx context.Context, args *struct {
 		}
 	}
 	args.ConnectionArgs.Set(&opt.LimitOffset)
-	return &externalAccountConnectionResolver{opt: opt}, nil
+	return &externalAccountConnectionResolver{stores: r.stores, opt: opt}, nil
 }
 
 func (r *UserResolver) ExternalAccounts(ctx context.Context, args *struct {
@@ -57,7 +57,7 @@ func (r *UserResolver) ExternalAccounts(ctx context.Context, args *struct {
 		UserID: r.user.ID,
 	}
 	args.ConnectionArgs.Set(&opt.LimitOffset)
-	return &externalAccountConnectionResolver{opt: opt}, nil
+	return &externalAccountConnectionResolver{stores: r.stores, opt: opt}, nil
 }
 
 // externalAccountConnectionResolver resolves a list of external accounts.
@@ -65,7 +65,8 @@ func (r *UserResolver) ExternalAccounts(ctx context.Context, args *struct {
 // 🚨 SECURITY: When instantiating an externalAccountConnectionResolver value, the caller MUST check
 // permissions.
 type externalAccountConnectionResolver struct {
-	opt database.ExternalAccountsListOptions
+	stores *stores
+	opt    database.ExternalAccountsListOptions
 
 	// cache results because they are used by multiple fields
 	once             sync.Once
@@ -95,7 +96,7 @@ func (r *externalAccountConnectionResolver) Nodes(ctx context.Context) ([]*exter
 
 	var l []*externalAccountResolver
 	for _, externalAccount := range externalAccounts {
-		l = append(l, &externalAccountResolver{account: *externalAccount})
+		l = append(l, &externalAccountResolver{stores: r.stores, account: *externalAccount})
 	}
 	return l, nil
 }

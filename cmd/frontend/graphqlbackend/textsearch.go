@@ -39,6 +39,7 @@ var textSearchLimiter = mutablelimiter.New(32)
 
 // FileMatchResolver is a resolver for the GraphQL type `FileMatch`
 type FileMatchResolver struct {
+	stores       *stores
 	JPath        string       `json:"Path"`
 	JLineMatches []*lineMatch `json:"LineMatches"`
 	JLimitHit    bool         `json:"LimitHit"`
@@ -67,6 +68,7 @@ func (fm *FileMatchResolver) File() *GitTreeEntryResolver {
 	// values for all other fields.
 	return &GitTreeEntryResolver{
 		commit: &GitCommitResolver{
+			stores:       fm.stores,
 			repoResolver: fm.Repo,
 			oid:          GitObjectID(fm.CommitID),
 			inputRev:     fm.InputRev,
@@ -167,7 +169,7 @@ func (lm *lineMatch) LimitHit() bool {
 
 var mockSearchFilesInRepo func(ctx context.Context, repo *types.RepoName, gitserverRepo api.RepoName, rev string, info *search.TextPatternInfo, fetchTimeout time.Duration) (matches []*FileMatchResolver, limitHit bool, err error)
 
-func searchFilesInRepo(ctx context.Context, searcherURLs *endpoint.Map, repo *types.RepoName, gitserverRepo api.RepoName, rev string, info *search.TextPatternInfo, fetchTimeout time.Duration) ([]*FileMatchResolver, bool, error) {
+func searchFilesInRepo(ctx context.Context, stores *stores, searcherURLs *endpoint.Map, repo *types.RepoName, gitserverRepo api.RepoName, rev string, info *search.TextPatternInfo, fetchTimeout time.Duration) ([]*FileMatchResolver, bool, error) {
 	if mockSearchFilesInRepo != nil {
 		return mockSearchFilesInRepo(ctx, repo, gitserverRepo, rev, info, fetchTimeout)
 	}
@@ -205,7 +207,7 @@ func searchFilesInRepo(ctx context.Context, searcherURLs *endpoint.Map, repo *ty
 	}
 
 	workspace := fileMatchURI(repo.Name, rev, "")
-	repoResolver := &RepositoryResolver{innerRepo: repo.ToRepo()}
+	repoResolver := &RepositoryResolver{stores: stores, innerRepo: repo.ToRepo()}
 	resolvers := make([]*FileMatchResolver, 0, len(matches))
 	for _, fm := range matches {
 		lineMatches := make([]*lineMatch, 0, len(fm.LineMatches))
@@ -317,9 +319,9 @@ func searchResultsToFileMatchResults(results []SearchResultResolver) ([]*FileMat
 
 // searchFilesInRepoBatch is a convenience function around searchFilesInRepos
 // which collects the results from the stream.
-func searchFilesInReposBatch(ctx context.Context, args *search.TextParameters) ([]*FileMatchResolver, streaming.Stats, error) {
+func searchFilesInReposBatch(ctx context.Context, stores *stores, args *search.TextParameters) ([]*FileMatchResolver, streaming.Stats, error) {
 	ctx, stream, done := collectStream(ctx)
-	searchFilesInRepos(ctx, args, stream)
+	searchFilesInRepos(ctx, stores, args, stream)
 	agg := done()
 	results, err := searchResultsToFileMatchResults(agg.Results)
 	if err != nil {
@@ -329,7 +331,7 @@ func searchFilesInReposBatch(ctx context.Context, args *search.TextParameters) (
 }
 
 // searchFilesInRepos searches a set of repos for a pattern.
-func searchFilesInRepos(ctx context.Context, args *search.TextParameters, stream SearchStream) {
+func searchFilesInRepos(ctx context.Context, stores *stores, args *search.TextParameters, stream SearchStream) {
 	var (
 		wg sync.WaitGroup
 
@@ -387,7 +389,7 @@ func searchFilesInRepos(ctx context.Context, args *search.TextParameters, stream
 		}
 	} else {
 		var err error
-		indexed, err = newIndexedSearchRequest(ctx, args, indexedTyp)
+		indexed, err = newIndexedSearchRequest(ctx, stores, args, indexedTyp)
 		if err != nil {
 			mu.Lock()
 			searchErr = err
@@ -562,7 +564,7 @@ func searchFilesInRepos(ctx context.Context, args *search.TextParameters, stream
 					defer wg.Done()
 					defer done()
 
-					matches, repoLimitHit, err := searchFilesInRepo(ctx, args.SearcherURLs, repoRev.Repo, repoRev.GitserverRepo(), repoRev.RevSpecs()[0], args.PatternInfo, fetchTimeout)
+					matches, repoLimitHit, err := searchFilesInRepo(ctx, stores, args.SearcherURLs, repoRev.Repo, repoRev.GitserverRepo(), repoRev.RevSpecs()[0], args.PatternInfo, fetchTimeout)
 					if err != nil {
 						tr.LogFields(otlog.String("repo", string(repoRev.Repo.Name)), otlog.Error(err), otlog.Bool("timeout", errcode.IsTimeout(err)), otlog.Bool("temporary", errcode.IsTemporary(err)))
 						log15.Warn("searchFilesInRepo failed", "error", err, "repo", repoRev.Repo.Name)

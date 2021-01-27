@@ -13,6 +13,7 @@ import (
 	"github.com/neelance/parallel"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-lsp"
+
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/backend"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/database"
@@ -102,7 +103,7 @@ func (r *searchResolver) Suggestions(ctx context.Context, args *searchSuggestion
 			resolvers := make([]*searchSuggestionResolver, 0, len(resolved.RepoRevs))
 			for _, rev := range resolved.RepoRevs {
 				resolvers = append(resolvers, newSearchSuggestionResolver(
-					&RepositoryResolver{innerRepo: rev.Repo.ToRepo()},
+					&RepositoryResolver{stores: r.stores, innerRepo: rev.Repo.ToRepo()},
 					math.MaxInt32,
 				))
 			}
@@ -216,7 +217,7 @@ func (r *searchResolver) Suggestions(ctx context.Context, args *searchSuggestion
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		fileMatches, _, err := searchSymbols(ctx, &search.TextParameters{
+		fileMatches, _, err := searchSymbols(ctx, r.stores, &search.TextParameters{
 			PatternInfo:  p,
 			RepoPromise:  (&search.Promise{}).Resolve(resolved.RepoRevs),
 			Query:        r.query,

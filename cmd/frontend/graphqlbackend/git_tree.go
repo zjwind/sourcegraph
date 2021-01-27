@@ -64,6 +64,7 @@ func (r *GitTreeEntryResolver) entries(ctx context.Context, args *gitTreeEntryCo
 	for _, entry := range entries {
 		if filter == nil || filter(entry) {
 			l = append(l, &GitTreeEntryResolver{
+				stores:        r.stores,
 				commit:        r.commit,
 				stat:          entry,
 				isSingleChild: &hasSingleChild,

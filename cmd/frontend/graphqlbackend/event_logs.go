@@ -20,11 +20,12 @@ func (r *UserResolver) EventLogs(ctx context.Context, args *struct {
 	args.ConnectionArgs.Set(&opt.LimitOffset)
 	opt.UserID = r.user.ID
 	opt.EventName = args.EventName
-	return &userEventLogsConnectionResolver{opt: opt}, nil
+	return &userEventLogsConnectionResolver{stores: r.stores, opt: opt}, nil
 }
 
 type userEventLogsConnectionResolver struct {
-	opt database.EventLogsListOptions
+	stores *stores
+	opt    database.EventLogsListOptions
 }
 
 func (r *userEventLogsConnectionResolver) Nodes(ctx context.Context) ([]*userEventLogResolver, error) {
@@ -35,7 +36,7 @@ func (r *userEventLogsConnectionResolver) Nodes(ctx context.Context) ([]*userEve
 
 	eventLogs := make([]*userEventLogResolver, 0, len(events))
 	for _, event := range events {
-		eventLogs = append(eventLogs, &userEventLogResolver{event: event})
+		eventLogs = append(eventLogs, &userEventLogResolver{stores: r.stores, event: event})
 	}
 
 	return eventLogs, nil

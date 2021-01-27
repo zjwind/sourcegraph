@@ -24,7 +24,7 @@ import (
 
 const singletonSiteGQLID = "site"
 
-func siteByGQLID(ctx context.Context, id graphql.ID) (Node, error) {
+func (r *schemaResolver) siteByGQLID(ctx context.Context, id graphql.ID) (Node, error) {
 	siteGQLID, err := unmarshalSiteGQLID(id)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func siteByGQLID(ctx context.Context, id graphql.ID) (Node, error) {
 	if siteGQLID != singletonSiteGQLID {
 		return nil, fmt.Errorf("site not found: %q", siteGQLID)
 	}
-	return &siteResolver{gqlID: siteGQLID}, nil
+	return &siteResolver{stores: r.stores, gqlID: siteGQLID}, nil
 }
 
 func marshalSiteGQLID(siteID string) graphql.ID { return relay.MarshalID("Site", siteID) }
@@ -46,12 +46,14 @@ func unmarshalSiteGQLID(id graphql.ID) (siteID string, err error) {
 	return
 }
 
-func (*schemaResolver) Site() *siteResolver {
-	return &siteResolver{gqlID: singletonSiteGQLID}
+func (r *schemaResolver) Site() *siteResolver {
+	return &siteResolver{stores: r.stores, gqlID: singletonSiteGQLID}
 }
 
 type siteResolver struct {
-	gqlID string // == singletonSiteGQLID, not the site ID
+	stores *stores
+	parent *schemaResolver
+	gqlID  string // == singletonSiteGQLID, not the site ID
 }
 
 var singletonSiteResolver = &siteResolver{gqlID: singletonSiteGQLID}
@@ -90,11 +92,11 @@ func (r *siteResolver) LatestSettings(ctx context.Context) (*settingsResolver, e
 	if settings == nil {
 		return nil, nil
 	}
-	return &settingsResolver{&settingsSubject{site: r}, settings, nil}, nil
+	return &settingsResolver{r.stores, &settingsSubject{site: r}, settings, nil}, nil
 }
 
 func (r *siteResolver) SettingsCascade() *settingsCascade {
-	return &settingsCascade{subject: &settingsSubject{site: r}}
+	return &settingsCascade{stores: r.stores, subject: &settingsSubject{site: r}}
 }
 
 func (r *siteResolver) ConfigurationCascade() *settingsCascade { return r.SettingsCascade() }

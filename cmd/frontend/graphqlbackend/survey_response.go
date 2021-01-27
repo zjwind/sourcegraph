@@ -16,6 +16,7 @@ import (
 )
 
 type surveyResponseResolver struct {
+	stores         *stores
 	surveyResponse *types.SurveyResponse
 }
 
@@ -26,7 +27,7 @@ func marshalSurveyResponseID(id int32) graphql.ID { return relay.MarshalID("Surv
 
 func (s *surveyResponseResolver) User(ctx context.Context) (*UserResolver, error) {
 	if s.surveyResponse.UserID != nil {
-		user, err := UserByIDInt32(ctx, *s.surveyResponse.UserID)
+		user, err := UserByIDInt32(ctx, s.stores, *s.surveyResponse.UserID)
 		if err != nil && errcode.IsNotFound(err) {
 			// This can happen if the user has been deleted, see issue #4888 and #6454
 			return nil, nil

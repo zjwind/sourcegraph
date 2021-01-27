@@ -21,6 +21,7 @@ import (
 // - Organization settings
 // - Current user settings
 type settingsCascade struct {
+	stores *stores
 	// At most 1 of these fields is set.
 	unauthenticatedActor bool
 	subject              *settingsSubject
@@ -33,7 +34,7 @@ func (r *settingsCascade) Subjects(ctx context.Context) ([]*settingsSubject, err
 		return mockSettingsCascadeSubjects()
 	}
 
-	subjects := []*settingsSubject{{defaultSettings: singletonDefaultSettingsResolver}, {site: singletonSiteResolver}}
+	subjects := []*settingsSubject{{defaultSettings: &defaultSettingsResolver{stores: r.stores, gqlID: singletonDefaultSettingsGQLID}}, {site: singletonSiteResolver}}
 
 	if r.unauthenticatedActor {
 		return subjects, nil
@@ -57,7 +58,7 @@ func (r *settingsCascade) Subjects(ctx context.Context) ([]*settingsSubject, err
 		})
 		// Apply the user's orgs' settings.
 		for _, org := range orgs {
-			subjects = append(subjects, &settingsSubject{org: &OrgResolver{org}})
+			subjects = append(subjects, &settingsSubject{org: &OrgResolver{stores: r.stores, org: org}})
 		}
 		// Apply the user's own settings last (it has highest priority).
 		subjects = append(subjects, r.subject)
@@ -192,15 +193,15 @@ func mergeSettingsValues(dst map[string]interface{}, field string, value interfa
 	dst[field] = value
 }
 
-func (schemaResolver) ViewerSettings(ctx context.Context) (*settingsCascade, error) {
-	user, err := CurrentUser(ctx)
+func (r schemaResolver) ViewerSettings(ctx context.Context) (*settingsCascade, error) {
+	user, err := CurrentUser(ctx, r.stores)
 	if err != nil {
 		return nil, err
 	}
 	if user == nil {
-		return &settingsCascade{unauthenticatedActor: true}, nil
+		return &settingsCascade{stores: r.stores, unauthenticatedActor: true}, nil
 	}
-	return &settingsCascade{subject: &settingsSubject{user: user}}, nil
+	return &settingsCascade{stores: r.stores, subject: &settingsSubject{user: user}}, nil
 }
 
 // Deprecated: in the GraphQL API

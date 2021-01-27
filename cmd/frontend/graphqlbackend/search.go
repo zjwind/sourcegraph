@@ -52,7 +52,7 @@ type SearchImplementer interface {
 }
 
 // NewSearchImplementer returns a SearchImplementer that provides search results and suggestions.
-func NewSearchImplementer(ctx context.Context, args *SearchArgs) (_ SearchImplementer, err error) {
+func NewSearchImplementer(ctx context.Context, stores *stores, args *SearchArgs) (_ SearchImplementer, err error) {
 	tr, ctx := trace.New(ctx, "NewSearchImplementer", args.Query)
 	defer func() {
 		tr.SetError(err)
@@ -83,7 +83,7 @@ func NewSearchImplementer(ctx context.Context, args *SearchArgs) (_ SearchImplem
 	tr.LogFields(otlog.Bool("globbing", globbing))
 	queryInfo, err = query.ProcessAndOr(args.Query, query.ParserOptions{SearchType: searchType, Globbing: globbing})
 	if err != nil {
-		return alertForQuery(args.Query, err), nil
+		return alertForQuery(stores, args.Query, err), nil
 	}
 	if getBoolPtr(settings.SearchUppercase, false) {
 		q := queryInfo.(*query.AndOrQuery)
@@ -95,7 +95,7 @@ func NewSearchImplementer(ctx context.Context, args *SearchArgs) (_ SearchImplem
 	if queryInfo.BoolValue(query.FieldStable) {
 		args, queryInfo, err = queryForStableResults(args, queryInfo)
 		if err != nil {
-			return alertForQuery(args.Query, err), nil
+			return alertForQuery(stores, args.Query, err), nil
 		}
 	}
 
@@ -109,6 +109,7 @@ func NewSearchImplementer(ctx context.Context, args *SearchArgs) (_ SearchImplem
 	}
 
 	return &searchResolver{
+		stores:         stores,
 		query:          queryInfo,
 		originalQuery:  args.Query,
 		versionContext: args.VersionContext,
@@ -123,7 +124,7 @@ func NewSearchImplementer(ctx context.Context, args *SearchArgs) (_ SearchImplem
 }
 
 func (r *schemaResolver) Search(ctx context.Context, args *SearchArgs) (SearchImplementer, error) {
-	return NewSearchImplementer(ctx, args)
+	return NewSearchImplementer(ctx, r.stores, args)
 }
 
 // queryForStableResults transforms a query that returns a stable result
@@ -238,6 +239,7 @@ func getBoolPtr(b *bool, def bool) bool {
 
 // searchResolver is a resolver for the GraphQL type `Search`
 type searchResolver struct {
+	stores              *stores
 	query               query.QueryInfo       // the query, either containing and/or expressions or otherwise ordinary
 	originalQuery       string                // the raw string of the original search query
 	pagination          *searchPaginationInfo // pagination information, or nil if the request is not paginated.
@@ -506,7 +508,7 @@ func (r *searchResolver) suggestFilePaths(ctx context.Context, limit int) ([]*se
 		return nil, err
 	}
 
-	fileResults, _, err := searchFilesInReposBatch(ctx, &args)
+	fileResults, _, err := searchFilesInReposBatch(ctx, r.stores, &args)
 	if err != nil {
 		return nil, err
 	}

@@ -16,12 +16,12 @@ import (
 	"github.com/graph-gophers/graphql-go/relay"
 )
 
-func gitCommitByID(ctx context.Context, id graphql.ID) (*GitCommitResolver, error) {
+func (r *schemaResolver) gitCommitByID(ctx context.Context, id graphql.ID) (*GitCommitResolver, error) {
 	repoID, commitID, err := unmarshalGitCommitID(id)
 	if err != nil {
 		return nil, err
 	}
-	repo, err := repositoryByID(ctx, repoID)
+	repo, err := r.repositoryByID(ctx, repoID)
 	if err != nil {
 		return nil, err
 	}
@@ -29,6 +29,7 @@ func gitCommitByID(ctx context.Context, id graphql.ID) (*GitCommitResolver, erro
 }
 
 type GitCommitResolver struct {
+	stores       *stores
 	repoResolver *RepositoryResolver
 
 	// inputRev is the Git revspec that the user originally requested that resolved to this Git commit. It is used
@@ -50,8 +51,9 @@ type GitCommitResolver struct {
 
 // When set to nil, commit will be loaded lazily as needed by the resolver. Pass in a commit when you have batch loaded
 // a bunch of them and already have them at hand.
-func toGitCommitResolver(repo *RepositoryResolver, id api.CommitID, commit *git.Commit) *GitCommitResolver {
+func toGitCommitResolver(repo *RepositoryResolver, stores *stores, id api.CommitID, commit *git.Commit) *GitCommitResolver {
 	return &GitCommitResolver{
+		stores:          stores,
 		repoResolver:    repo,
 		includeUserInfo: true,
 		gitRepo:         repo.innerRepo.Name,
@@ -106,7 +108,7 @@ func (r *GitCommitResolver) Author(ctx context.Context) (*signatureResolver, err
 	if err != nil {
 		return nil, err
 	}
-	return toSignatureResolver(&commit.Author, r.includeUserInfo), nil
+	return toSignatureResolver(r.stores, &commit.Author, r.includeUserInfo), nil
 }
 
 func (r *GitCommitResolver) Committer(ctx context.Context) (*signatureResolver, error) {
@@ -114,7 +116,7 @@ func (r *GitCommitResolver) Committer(ctx context.Context) (*signatureResolver, 
 	if err != nil {
 		return nil, err
 	}
-	return toSignatureResolver(commit.Committer, r.includeUserInfo), nil
+	return toSignatureResolver(r.stores, commit.Committer, r.includeUserInfo), nil
 }
 
 func (r *GitCommitResolver) Message(ctx context.Context) (string, error) {
@@ -195,6 +197,7 @@ func (r *GitCommitResolver) Tree(ctx context.Context, args *struct {
 		return nil, fmt.Errorf("not a directory: %q", args.Path)
 	}
 	return &GitTreeEntryResolver{
+		stores:      r.stores,
 		commit:      r,
 		stat:        stat,
 		isRecursive: args.Recursive,
@@ -267,6 +270,7 @@ func (r *GitCommitResolver) Ancestors(ctx context.Context, args *struct {
 	After *string
 }) (*gitCommitConnectionResolver, error) {
 	return &gitCommitConnectionResolver{
+		stores:        r.stores,
 		revisionRange: string(r.oid),
 		first:         args.ConnectionArgs.First,
 		query:         args.Query,

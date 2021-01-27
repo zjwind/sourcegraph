@@ -19,6 +19,7 @@ import (
 )
 
 type externalServiceResolver struct {
+	stores          *stores
 	externalService *types.ExternalService
 	warning         string
 
@@ -29,13 +30,13 @@ type externalServiceResolver struct {
 
 const externalServiceIDKind = "ExternalService"
 
-func externalServiceByID(ctx context.Context, gqlID graphql.ID) (*externalServiceResolver, error) {
+func externalServiceByID(ctx context.Context, stores *stores, gqlID graphql.ID) (*externalServiceResolver, error) {
 	id, err := unmarshalExternalServiceID(gqlID)
 	if err != nil {
 		return nil, err
 	}
 
-	es, err := database.GlobalExternalServices.GetByID(ctx, id)
+	es, err := stores.externalServices.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func externalServiceByID(ctx context.Context, gqlID graphql.ID) (*externalServic
 		}
 	}
 
-	return &externalServiceResolver{externalService: es}, nil
+	return &externalServiceResolver{stores: stores, externalService: es}, nil
 }
 
 func marshalExternalServiceID(id int64) graphql.ID {

@@ -9,6 +9,7 @@ import (
 )
 
 type gitCommitConnectionResolver struct {
+	stores        *stores
 	revisionRange string
 
 	first  *int32
@@ -75,7 +76,7 @@ func (r *gitCommitConnectionResolver) Nodes(ctx context.Context) ([]*GitCommitRe
 
 	resolvers := make([]*GitCommitResolver, len(commits))
 	for i, commit := range commits {
-		resolvers[i] = toGitCommitResolver(r.repo, commit.ID, commit)
+		resolvers[i] = toGitCommitResolver(r.repo, r.stores, commit.ID, commit)
 	}
 
 	return resolvers, nil

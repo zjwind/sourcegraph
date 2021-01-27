@@ -30,27 +30,28 @@ func (r *schemaResolver) Organization(ctx context.Context, args struct{ Name str
 func (r *schemaResolver) Org(ctx context.Context, args *struct {
 	ID graphql.ID
 }) (*OrgResolver, error) {
-	return OrgByID(ctx, args.ID)
+	return OrgByID(ctx, r.stores, args.ID)
 }
 
-func OrgByID(ctx context.Context, id graphql.ID) (*OrgResolver, error) {
+func OrgByID(ctx context.Context, stores *stores, id graphql.ID) (*OrgResolver, error) {
 	orgID, err := UnmarshalOrgID(id)
 	if err != nil {
 		return nil, err
 	}
-	return OrgByIDInt32(ctx, orgID)
+	return OrgByIDInt32(ctx, stores, orgID)
 }
 
-func OrgByIDInt32(ctx context.Context, orgID int32) (*OrgResolver, error) {
-	org, err := database.GlobalOrgs.GetByID(ctx, orgID)
+func OrgByIDInt32(ctx context.Context, stores *stores, orgID int32) (*OrgResolver, error) {
+	org, err := stores.orgs.GetByID(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}
-	return &OrgResolver{org}, nil
+	return &OrgResolver{stores, org}, nil
 }
 
 type OrgResolver struct {
-	org *types.Org
+	stores *stores
+	org    *types.Org
 }
 
 func NewOrg(org *types.Org) *OrgResolver { return &OrgResolver{org: org} }
@@ -103,7 +104,7 @@ func (o *OrgResolver) Members(ctx context.Context) (*staticUserConnectionResolve
 		}
 		users[i] = user
 	}
-	return &staticUserConnectionResolver{users: users}, nil
+	return &staticUserConnectionResolver{stores: o.stores, users: users}, nil
 }
 
 func (o *OrgResolver) settingsSubject() api.SettingsSubject {
@@ -124,11 +125,11 @@ func (o *OrgResolver) LatestSettings(ctx context.Context) (*settingsResolver, er
 	if settings == nil {
 		return nil, nil
 	}
-	return &settingsResolver{&settingsSubject{org: o}, settings, nil}, nil
+	return &settingsResolver{o.stores, &settingsSubject{org: o}, settings, nil}, nil
 }
 
 func (o *OrgResolver) SettingsCascade() *settingsCascade {
-	return &settingsCascade{subject: &settingsSubject{org: o}}
+	return &settingsCascade{stores: o.stores, subject: &settingsSubject{org: o}}
 }
 
 func (o *OrgResolver) ConfigurationCascade() *settingsCascade { return o.SettingsCascade() }
@@ -142,7 +143,7 @@ func (o *OrgResolver) ViewerPendingInvitation(ctx context.Context) (*organizatio
 		if err != nil {
 			return nil, err
 		}
-		return &organizationInvitationResolver{orgInvitation}, nil
+		return &organizationInvitationResolver{o.stores, orgInvitation}, nil
 	}
 	return nil, nil
 }
@@ -178,11 +179,11 @@ func (o *OrgResolver) Campaigns(ctx context.Context, args *ListCampaignsArgs) (C
 	return EnterpriseResolvers.campaignsResolver.Campaigns(ctx, args)
 }
 
-func (*schemaResolver) CreateOrganization(ctx context.Context, args *struct {
+func (r *schemaResolver) CreateOrganization(ctx context.Context, args *struct {
 	Name        string
 	DisplayName *string
 }) (*OrgResolver, error) {
-	currentUser, err := CurrentUser(ctx)
+	currentUser, err := CurrentUser(ctx, r.stores)
 	if err != nil {
 		return nil, err
 	}

@@ -64,6 +64,8 @@ type indexedSearchRequest struct {
 
 	// since if non-nil will be used instead of time.Since. For tests
 	since func(time.Time) time.Duration
+
+	stores *stores
 }
 
 // TODO (stefan) move this out of zoekt.go to the new parser once it is guaranteed that the old parser is turned off for all customers
@@ -85,7 +87,7 @@ func containsRefGlobs(q query.QueryInfo) bool {
 	return containsRefGlobs
 }
 
-func newIndexedSearchRequest(ctx context.Context, args *search.TextParameters, typ indexedRequestType) (_ *indexedSearchRequest, err error) {
+func newIndexedSearchRequest(ctx context.Context, stores *stores, args *search.TextParameters, typ indexedRequestType) (_ *indexedSearchRequest, err error) {
 	tr, ctx := trace.New(ctx, "newIndexedSearchRequest", string(typ))
 	defer func() {
 		tr.SetError(err)
@@ -180,8 +182,9 @@ func newIndexedSearchRequest(ctx context.Context, args *search.TextParameters, t
 	}
 
 	return &indexedSearchRequest{
-		args: args,
-		typ:  typ,
+		stores: stores,
+		args:   args,
+		typ:    typ,
 
 		Unindexed: searcherRepos,
 		repos:     indexed,
@@ -199,7 +202,7 @@ func (s *indexedSearchRequest) Repos() map[string]*search.RepositoryRevisions {
 	return s.repos.repoRevs
 }
 
-type streamFunc func(ctx context.Context, args *search.TextParameters, repos *indexedRepoRevs, typ indexedRequestType, since func(t time.Time) time.Duration, c SearchStream)
+type streamFunc func(ctx context.Context, stores *stores, args *search.TextParameters, repos *indexedRepoRevs, typ indexedRequestType, since func(t time.Time) time.Duration, c SearchStream)
 
 // Search returns a search event stream. Ensure you drain the stream.
 func (s *indexedSearchRequest) Search(ctx context.Context) <-chan SearchEvent {
@@ -238,7 +241,7 @@ func (s *indexedSearchRequest) doSearch(ctx context.Context, c SearchStream) {
 		return
 	}
 
-	zoektStream(ctx, s.args, s.repos, s.typ, since, c)
+	zoektStream(ctx, s.stores, s.args, s.repos, s.typ, since, c)
 }
 
 // zoektSearch searches repositories using zoekt.
@@ -246,7 +249,7 @@ func (s *indexedSearchRequest) doSearch(ctx context.Context, c SearchStream) {
 // Timeouts are reported through the context, and as a special case errNoResultsInTimeout
 // is returned if no results are found in the given timeout (instead of the more common
 // case of finding partial or full results in the given timeout).
-func zoektSearch(ctx context.Context, args *search.TextParameters, repos *indexedRepoRevs, typ indexedRequestType, since func(t time.Time) time.Duration, c SearchStream) {
+func zoektSearch(ctx context.Context, stores *stores, args *search.TextParameters, repos *indexedRepoRevs, typ indexedRequestType, since func(t time.Time) time.Duration, c SearchStream) {
 	if args == nil {
 		return
 	}
@@ -396,7 +399,7 @@ func zoektSearch(ctx context.Context, args *search.TextParameters, repos *indexe
 			}
 			repoResolver := repoResolvers[repo.Name]
 			if repoResolver == nil {
-				repoResolver = &RepositoryResolver{innerRepo: repo.ToRepo()}
+				repoResolver = &RepositoryResolver{stores: stores, innerRepo: repo.ToRepo()}
 				repoResolvers[repo.Name] = repoResolver
 			}
 
@@ -411,9 +414,10 @@ func zoektSearch(ctx context.Context, args *search.TextParameters, repos *indexe
 
 				var symbols []*searchSymbolResult
 				if typ == symbolRequest {
-					symbols = zoektFileMatchToSymbolResults(repoResolver, inputRev, &file)
+					symbols = zoektFileMatchToSymbolResults(repoResolver, stores, inputRev, &file)
 				}
 				fm := &FileMatchResolver{
+					stores:       stores,
 					JPath:        file.FileName,
 					JLineMatches: lines,
 					JLimitHit:    fileLimitHit,
@@ -516,12 +520,13 @@ func escape(s string) string {
 	return string(escaped)
 }
 
-func zoektFileMatchToSymbolResults(repo *RepositoryResolver, inputRev string, file *zoekt.FileMatch) []*searchSymbolResult {
+func zoektFileMatchToSymbolResults(repo *RepositoryResolver, stores *stores, inputRev string, file *zoekt.FileMatch) []*searchSymbolResult {
 	// Symbol search returns a resolver so we need to pass in some
 	// extra stuff. This is a sign that we can probably restructure
 	// resolvers to avoid this.
 	baseURI := &gituri.URI{URL: url.URL{Scheme: "git", Host: repo.Name(), RawQuery: url.QueryEscape(inputRev)}}
 	commit := &GitCommitResolver{
+		stores:       stores,
 		repoResolver: repo,
 		oid:          GitObjectID(file.Version),
 		inputRev:     &inputRev,

@@ -20,15 +20,16 @@ import (
 // other services likely allow user accounts to do more than what access tokens
 // alone can via the API.
 type accessTokenResolver struct {
+	stores      *stores
 	accessToken database.AccessToken
 }
 
-func accessTokenByID(ctx context.Context, id graphql.ID) (*accessTokenResolver, error) {
+func accessTokenByID(ctx context.Context, stores *stores, id graphql.ID) (*accessTokenResolver, error) {
 	accessTokenID, err := unmarshalAccessTokenID(id)
 	if err != nil {
 		return nil, err
 	}
-	accessToken, err := database.GlobalAccessTokens.GetByID(ctx, accessTokenID)
+	accessToken, err := stores.accessTokens.GetByID(ctx, accessTokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func unmarshalAccessTokenID(id graphql.ID) (accessTokenID int64, err error) {
 func (r *accessTokenResolver) ID() graphql.ID { return marshalAccessTokenID(r.accessToken.ID) }
 
 func (r *accessTokenResolver) Subject(ctx context.Context) (*UserResolver, error) {
-	return UserByIDInt32(ctx, r.accessToken.SubjectUserID)
+	return UserByIDInt32(ctx, r.stores, r.accessToken.SubjectUserID)
 }
 
 func (r *accessTokenResolver) Scopes() []string { return r.accessToken.Scopes }
@@ -57,7 +58,7 @@ func (r *accessTokenResolver) Scopes() []string { return r.accessToken.Scopes }
 func (r *accessTokenResolver) Note() string { return r.accessToken.Note }
 
 func (r *accessTokenResolver) Creator(ctx context.Context) (*UserResolver, error) {
-	return UserByIDInt32(ctx, r.accessToken.CreatorUserID)
+	return UserByIDInt32(ctx, r.stores, r.accessToken.CreatorUserID)
 }
 
 func (r *accessTokenResolver) CreatedAt() DateTime { return DateTime{Time: r.accessToken.CreatedAt} }

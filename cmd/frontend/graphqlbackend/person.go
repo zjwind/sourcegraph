@@ -11,8 +11,9 @@ import (
 )
 
 type PersonResolver struct {
-	name  string
-	email string
+	stores *stores
+	name   string
+	email  string
 
 	// fetch + serve sourcegraph stored user information
 	includeUserInfo bool
@@ -23,8 +24,9 @@ type PersonResolver struct {
 	err  error
 }
 
-func NewPersonResolver(name, email string, includeUserInfo bool) *PersonResolver {
+func NewPersonResolver(stores *stores, name, email string, includeUserInfo bool) *PersonResolver {
 	return &PersonResolver{
+		stores:          stores,
 		name:            name,
 		email:           email,
 		includeUserInfo: includeUserInfo,
@@ -96,5 +98,5 @@ func (r *PersonResolver) User(ctx context.Context) (*UserResolver, error) {
 	if user == nil || err != nil {
 		return nil, err
 	}
-	return &UserResolver{user: user}, nil
+	return NewUserResolver(r.stores, user), nil
 }

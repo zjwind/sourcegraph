@@ -57,10 +57,11 @@ func init() {
 }
 
 type prometheusTracer struct {
+	stores *stores
 	trace.OpenTracingTracer
 }
 
-func (prometheusTracer) TraceQuery(ctx context.Context, queryString string, operationName string, variables map[string]interface{}, varTypes map[string]*introspection.Type) (context.Context, trace.TraceQueryFinishFunc) {
+func (t prometheusTracer) TraceQuery(ctx context.Context, queryString string, operationName string, variables map[string]interface{}, varTypes map[string]*introspection.Type) (context.Context, trace.TraceQueryFinishFunc) {
 	start := time.Now()
 	var finish trace.TraceQueryFinishFunc
 	if ot.ShouldTrace(ctx) {
@@ -73,7 +74,7 @@ func (prometheusTracer) TraceQuery(ctx context.Context, queryString string, oper
 
 	// Note: We don't care about the error here, we just extract the username if
 	// we get a non-nil user object.
-	currentUser, _ := CurrentUser(ctx)
+	currentUser, _ := CurrentUser(ctx, t.stores)
 	var currentUserName string
 	if currentUser != nil {
 		currentUserName = currentUser.Username()
@@ -341,8 +342,11 @@ func prometheusGraphQLRequestName(requestName string) string {
 }
 
 func NewSchema(db dbutil.DB, campaigns CampaignsResolver, codeIntel CodeIntelResolver, insights InsightsResolver, authz AuthzResolver, codeMonitors CodeMonitorsResolver, license LicenseResolver) (*graphql.Schema, error) {
+	stores := newStores(db)
 	resolver := &schemaResolver{
-		db:                db,
+		db:     db,
+		stores: stores,
+
 		CampaignsResolver: defaultCampaignsResolver{},
 		AuthzResolver:     defaultAuthzResolver{},
 		CodeIntelResolver: defaultCodeIntelResolver{},
@@ -376,7 +380,7 @@ func NewSchema(db dbutil.DB, campaigns CampaignsResolver, codeIntel CodeIntelRes
 	return graphql.ParseSchema(
 		Schema,
 		resolver,
-		graphql.Tracer(prometheusTracer{}),
+		graphql.Tracer(prometheusTracer{stores: stores}),
 		graphql.UseStringDescriptions(),
 	)
 }
@@ -558,6 +562,50 @@ func (r *NodeResolver) ToLSIFIndex() (LSIFIndexResolver, bool) {
 	return n, ok
 }
 
+type stores struct {
+	accessTokens     *database.AccessTokenStore
+	externalServices *database.ExternalServiceStore
+	defaultRepos     *database.DefaultRepoStore
+	repos            *database.RepoStore
+	phabricator      *database.PhabricatorStore
+	queryRunnerState *database.QueryRunnerStateStore
+	namespaces       *database.NamespaceStore
+	orgs             *database.OrgStore
+	orgMembers       *database.OrgMemberStore
+	savedSearches    *database.SavedSearchStore
+	settings         *database.SettingStore
+	users            *database.UserStore
+	userCredentials  *database.UserCredentialsStore
+	userEmails       *database.UserEmailsStore
+	eventLogs        *database.EventLogStore
+	surveyResponses  *database.SurveyResponseStore
+	externalAccounts *database.UserExternalAccountsStore
+	orgInvitations   *database.OrgInvitationStore
+}
+
+func newStores(db dbutil.DB) *stores {
+	return &stores{
+		accessTokens:     database.AccessTokens(db),
+		externalServices: database.ExternalServices(db),
+		defaultRepos:     database.DefaultRepos(db),
+		repos:            database.Repos(db),
+		phabricator:      database.Phabricator(db),
+		queryRunnerState: database.QueryRunnerState(db),
+		namespaces:       database.Namespaces(db),
+		orgs:             database.Orgs(db),
+		orgMembers:       database.OrgMembers(db),
+		savedSearches:    database.SavedSearches(db),
+		settings:         database.Settings(db),
+		users:            database.Users(db),
+		userCredentials:  database.UserCredentials(db),
+		userEmails:       database.UserEmails(db),
+		eventLogs:        database.EventLogs(db),
+		surveyResponses:  database.SurveyResponses(db),
+		externalAccounts: database.ExternalAccounts(db),
+		orgInvitations:   database.OrgInvitations(db),
+	}
+}
+
 // schemaResolver handles all GraphQL queries for Sourcegraph. To do this, it
 // uses subresolvers which are globals. Enterprise-only resolvers are assigned
 // to a field of EnterpriseResolvers.
@@ -569,7 +617,8 @@ type schemaResolver struct {
 	CodeMonitorsResolver
 	LicenseResolver
 
-	db dbutil.DB
+	db     dbutil.DB
+	stores *stores
 }
 
 // EnterpriseResolvers holds the instances of resolvers which are enabled only
@@ -608,7 +657,7 @@ func (r *schemaResolver) Node(ctx context.Context, args *struct{ ID graphql.ID }
 func (r *schemaResolver) nodeByID(ctx context.Context, id graphql.ID) (Node, error) {
 	switch relay.UnmarshalKind(id) {
 	case "AccessToken":
-		return accessTokenByID(ctx, id)
+		return accessTokenByID(ctx, r.stores, id)
 	case "Campaign":
 		return r.CampaignByID(ctx, id)
 	case "CampaignSpec":
@@ -630,27 +679,27 @@ func (r *schemaResolver) nodeByID(ctx context.Context, id graphql.ID) (Node, err
 		}
 		return nil, errors.New("not implemented")
 	case "ExternalAccount":
-		return externalAccountByID(ctx, id)
+		return externalAccountByID(ctx, r.stores, id)
 	case externalServiceIDKind:
-		return externalServiceByID(ctx, id)
+		return externalServiceByID(ctx, r.stores, id)
 	case "GitRef":
-		return gitRefByID(ctx, id)
+		return r.gitRefByID(ctx, id)
 	case "Repository":
-		return repositoryByID(ctx, id)
+		return r.repositoryByID(ctx, id)
 	case "User":
-		return UserByID(ctx, id)
+		return UserByID(ctx, r.stores, id)
 	case "Org":
-		return OrgByID(ctx, id)
+		return OrgByID(ctx, r.stores, id)
 	case "OrganizationInvitation":
-		return orgInvitationByID(ctx, id)
+		return orgInvitationByID(ctx, r.stores, id)
 	case "GitCommit":
-		return gitCommitByID(ctx, id)
+		return r.gitCommitByID(ctx, id)
 	case "RegistryExtension":
 		return RegistryExtensionByID(ctx, id)
 	case "SavedSearch":
-		return savedSearchByID(ctx, id)
+		return r.savedSearchByID(ctx, id)
 	case "Site":
-		return siteByGQLID(ctx, id)
+		return r.siteByGQLID(ctx, id)
 	case "LSIFUpload":
 		return r.LSIFUploadByID(ctx, id)
 	case "LSIFIndex":
@@ -739,7 +788,7 @@ func (r *schemaResolver) RepositoryRedirect(ctx context.Context, args *struct {
 		}
 		return nil, err
 	}
-	return &repositoryRedirect{repo: &RepositoryResolver{innerRepo: repo}}, nil
+	return &repositoryRedirect{repo: &RepositoryResolver{stores: r.stores, innerRepo: repo}}, nil
 }
 
 func (r *schemaResolver) PhabricatorRepo(ctx context.Context, args *struct {
@@ -759,7 +808,7 @@ func (r *schemaResolver) PhabricatorRepo(ctx context.Context, args *struct {
 }
 
 func (r *schemaResolver) CurrentUser(ctx context.Context) (*UserResolver, error) {
-	return CurrentUser(ctx)
+	return CurrentUser(ctx, r.stores)
 }
 
 func (r *schemaResolver) AffiliatedRepositories(ctx context.Context, args *struct {

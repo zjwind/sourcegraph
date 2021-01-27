@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+
 	"github.com/sourcegraph/sourcegraph/internal/database"
+	"github.com/sourcegraph/sourcegraph/internal/database/dbtesting"
 	"github.com/sourcegraph/sourcegraph/internal/search"
 	"github.com/sourcegraph/sourcegraph/internal/search/query"
 	"github.com/sourcegraph/sourcegraph/internal/types"
@@ -20,6 +22,7 @@ import (
 
 func TestSearchCommitsInRepo(t *testing.T) {
 	ctx := context.Background()
+	stores := newStores(dbtesting.GetDB(t))
 
 	var calledVCSRawLogDiffSearch bool
 	gitSignatureWithDate := git.Signature{Date: time.Now().UTC().AddDate(0, 0, -1)}
@@ -54,7 +57,7 @@ func TestSearchCommitsInRepo(t *testing.T) {
 		Repo: &types.RepoName{ID: 1, Name: "repo"},
 		Revs: []search.RevisionSpecifier{{RevSpec: "rev"}},
 	}
-	results, limitHit, timedOut, err := searchCommitsInRepo(ctx, search.CommitParameters{
+	results, limitHit, timedOut, err := searchCommitsInRepo(ctx, stores, search.CommitParameters{
 		RepoRevs:    repoRevs,
 		PatternInfo: &search.CommitPatternInfo{Pattern: "p", FileMatchLimit: int32(defaultMaxSearchResults)},
 		Query:       q,
@@ -65,7 +68,8 @@ func TestSearchCommitsInRepo(t *testing.T) {
 	}
 
 	wantCommit := toGitCommitResolver(
-		&RepositoryResolver{innerRepo: &types.Repo{ID: 1, Name: "repo"}},
+		&RepositoryResolver{stores: stores, innerRepo: &types.Repo{ID: 1, Name: "repo"}},
+		stores,
 		"c1",
 		&git.Commit{ID: "c1", Author: gitSignatureWithDate},
 	)
@@ -282,8 +286,8 @@ func Benchmark_highlightMatches(b *testing.B) {
 }
 
 // searchCommitsInRepo is a blocking version of searchCommitsInRepoStream.
-func searchCommitsInRepo(ctx context.Context, op search.CommitParameters) (results []*CommitSearchResultResolver, limitHit, timedOut bool, err error) {
-	for event := range searchCommitsInRepoStream(ctx, op) {
+func searchCommitsInRepo(ctx context.Context, stores *stores, op search.CommitParameters) (results []*CommitSearchResultResolver, limitHit, timedOut bool, err error) {
+	for event := range searchCommitsInRepoStream(ctx, stores, op) {
 		results = append(results, event.Results...)
 		limitHit = event.LimitHit
 		timedOut = event.TimedOut

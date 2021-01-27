@@ -34,6 +34,7 @@ func init() {
 // GitTreeEntryResolver resolves an entry in a Git tree in a repository. The entry can be any Git
 // object type that is valid in a tree.
 type GitTreeEntryResolver struct {
+	stores *stores
 	commit *GitCommitResolver
 
 	contentOnce sync.Once
@@ -48,8 +49,8 @@ type GitTreeEntryResolver struct {
 	isSingleChild *bool // whether this is the single entry in its parent. Only set by the (&GitTreeEntryResolver) entries.
 }
 
-func NewGitTreeEntryResolver(commit *GitCommitResolver, stat os.FileInfo) *GitTreeEntryResolver {
-	return &GitTreeEntryResolver{commit: commit, stat: stat}
+func NewGitTreeEntryResolver(commit *GitCommitResolver, stores *stores, stat os.FileInfo) *GitTreeEntryResolver {
+	return &GitTreeEntryResolver{stores: stores, commit: commit, stat: stat}
 }
 
 func (r *GitTreeEntryResolver) Path() string { return r.stat.Name() }

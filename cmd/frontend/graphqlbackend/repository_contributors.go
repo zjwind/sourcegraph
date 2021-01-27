@@ -19,15 +19,17 @@ func (r *RepositoryResolver) Contributors(args *struct {
 	First *int32
 }) *repositoryContributorConnectionResolver {
 	return &repositoryContributorConnectionResolver{
-		args:  args.repositoryContributorsArgs,
-		first: args.First,
-		repo:  r,
+		stores: r.stores,
+		args:   args.repositoryContributorsArgs,
+		first:  args.First,
+		repo:   r,
 	}
 }
 
 type repositoryContributorConnectionResolver struct {
-	args  repositoryContributorsArgs
-	first *int32
+	stores *stores
+	args   repositoryContributorsArgs
+	first  *int32
 
 	repo *RepositoryResolver
 
@@ -67,11 +69,12 @@ func (r *repositoryContributorConnectionResolver) Nodes(ctx context.Context) ([]
 	resolvers := make([]*repositoryContributorResolver, len(results))
 	for i, contributor := range results {
 		resolvers[i] = &repositoryContributorResolver{
-			name:  contributor.Name,
-			email: contributor.Email,
-			count: contributor.Count,
-			repo:  r.repo,
-			args:  r.args,
+			stores: r.stores,
+			name:   contributor.Name,
+			email:  contributor.Email,
+			count:  contributor.Count,
+			repo:   r.repo,
+			args:   r.args,
 		}
 	}
 	return resolvers, nil

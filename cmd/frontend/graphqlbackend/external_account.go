@@ -7,20 +7,20 @@ import (
 	"github.com/graph-gophers/graphql-go/relay"
 
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/backend"
-	"github.com/sourcegraph/sourcegraph/internal/database"
 	"github.com/sourcegraph/sourcegraph/internal/extsvc"
 )
 
 type externalAccountResolver struct {
+	stores  *stores
 	account extsvc.Account
 }
 
-func externalAccountByID(ctx context.Context, id graphql.ID) (*externalAccountResolver, error) {
+func externalAccountByID(ctx context.Context, stores *stores, id graphql.ID) (*externalAccountResolver, error) {
 	externalAccountID, err := unmarshalExternalAccountID(id)
 	if err != nil {
 		return nil, err
 	}
-	account, err := database.GlobalExternalAccounts.Get(ctx, externalAccountID)
+	account, err := stores.externalAccounts.Get(ctx, externalAccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func externalAccountByID(ctx context.Context, id graphql.ID) (*externalAccountRe
 		return nil, err
 	}
 
-	return &externalAccountResolver{account: *account}, nil
+	return &externalAccountResolver{stores: stores, account: *account}, nil
 }
 
 func marshalExternalAccountID(repo int32) graphql.ID { return relay.MarshalID("ExternalAccount", repo) }
@@ -42,7 +42,7 @@ func unmarshalExternalAccountID(id graphql.ID) (externalAccountID int32, err err
 
 func (r *externalAccountResolver) ID() graphql.ID { return marshalExternalAccountID(r.account.ID) }
 func (r *externalAccountResolver) User(ctx context.Context) (*UserResolver, error) {
-	return UserByIDInt32(ctx, r.account.UserID)
+	return UserByIDInt32(ctx, r.stores, r.account.UserID)
 }
 func (r *externalAccountResolver) ServiceType() string { return r.account.ServiceType }
 func (r *externalAccountResolver) ServiceID() string   { return r.account.ServiceID }

@@ -23,6 +23,7 @@ import (
 )
 
 type searchAlert struct {
+	stores          *stores
 	prometheusType  string
 	title           string
 	description     string
@@ -45,8 +46,9 @@ func (a searchAlert) ProposedQueries() *[]*searchQueryDescription {
 	return &a.proposedQueries
 }
 
-func alertForCappedAndExpression() *searchAlert {
+func alertForCappedAndExpression(stores *stores) *searchAlert {
 	return &searchAlert{
+		stores:         stores,
 		prometheusType: "exceed_and_expression_search_limit",
 		title:          "Too many files to search for and-expression",
 		description:    "One and-expression in the query requires a lot of work! Try using the 'repo:' or 'file:' filters to narrow your search. We're working on improving this experience in https://github.com/sourcegraph/sourcegraph/issues/9824",
@@ -64,10 +66,11 @@ func toSearchQueryDescription(proposed []*query.ProposedQuery) (result []*search
 }
 
 // alertForQuery converts errors in the query to search alerts.
-func alertForQuery(queryString string, err error) *searchAlert {
+func alertForQuery(stores *stores, queryString string, err error) *searchAlert {
 	switch e := err.(type) {
 	case *query.LegacyParseError:
 		return &searchAlert{
+			stores:          stores,
 			prometheusType:  "parse_syntax_error",
 			title:           capFirst(e.Msg),
 			description:     "Quoting the query may help if you want a literal match.",
@@ -75,6 +78,7 @@ func alertForQuery(queryString string, err error) *searchAlert {
 		}
 	case *query.ValidationError:
 		return &searchAlert{
+			stores:         stores,
 			prometheusType: "validation_error",
 			title:          "Invalid Query",
 			description:    capFirst(e.Msg),
@@ -83,6 +87,7 @@ func alertForQuery(queryString string, err error) *searchAlert {
 		switch e := e.Err.(type) {
 		case *rxsyntax.Error:
 			return &searchAlert{
+				stores:          stores,
 				prometheusType:  "typecheck_regex_syntax_error",
 				title:           capFirst(e.Error()),
 				description:     "Quoting the query may help if you want a literal match instead of a regular expression match.",
@@ -91,20 +96,23 @@ func alertForQuery(queryString string, err error) *searchAlert {
 		}
 	case *query.UnsupportedError, *query.ExpectedOperand:
 		return &searchAlert{
+			stores:         stores,
 			prometheusType: "unsupported_and_or_query",
 			title:          "Unable To Process Query",
 			description:    `I'm having trouble understanding that query. Your query contains "and" or "or" operators that make me think they apply to filters like "repo:" or "file:". We only support "and" or "or" operators on search patterns for file contents currently. You can help me by putting parentheses around the search pattern.`,
 		}
 	}
 	return &searchAlert{
+		stores:         stores,
 		prometheusType: "generic_invalid_query",
 		title:          "Unable To Process Query",
 		description:    capFirst(err.Error()),
 	}
 }
 
-func alertForTimeout(usedTime time.Duration, suggestTime time.Duration, r *searchResolver) *searchAlert {
+func alertForTimeout(stores *stores, usedTime time.Duration, suggestTime time.Duration, r *searchResolver) *searchAlert {
 	return &searchAlert{
+		stores:         stores,
 		prometheusType: "timed_out",
 		title:          "Timed out while searching",
 		description:    fmt.Sprintf("We weren't able to find any results in %s.", roundStr(usedTime.String())),
@@ -118,8 +126,9 @@ func alertForTimeout(usedTime time.Duration, suggestTime time.Duration, r *searc
 	}
 }
 
-func alertForStalePermissions() *searchAlert {
+func alertForStalePermissions(stores *stores) *searchAlert {
 	return &searchAlert{
+		stores:         stores,
 		prometheusType: "no_resolved_repos__stale_permissions",
 		title:          "Permissions syncing in progress",
 		description:    "Permissions are being synced from your code host, please wait for a minute and try again.",
@@ -150,6 +159,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	// Handle repogroup-only scenarios.
 	if len(repoFilters) == 0 && len(repoGroupFilters) == 0 {
 		return &searchAlert{
+			stores:         r.stores,
 			prometheusType: "no_resolved_repos__no_repositories",
 			title:          "Add repositories or connect repository hosts",
 			description:    "There are no repositories to search. Add an external service connection to your code host.",
@@ -157,6 +167,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	}
 	if len(repoFilters) == 0 && len(repoGroupFilters) == 1 {
 		return &searchAlert{
+			stores:         r.stores,
 			prometheusType: "no_resolved_repos__repogroup_empty",
 			title:          fmt.Sprintf("Add repositories to repogroup:%s to see results", repoGroupFilters[0]),
 			description:    fmt.Sprintf("The repository group %q is empty. See the documentation for configuration and troubleshooting.", repoGroupFilters[0]),
@@ -164,6 +175,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	}
 	if len(repoFilters) == 0 && len(repoGroupFilters) > 1 {
 		return &searchAlert{
+			stores:         r.stores,
 			prometheusType: "no_resolved_repos__repogroup_none_in_common",
 			title:          "Repository groups have no repositories in common",
 			description:    "No repository exists in all of the specified repository groups.",
@@ -178,6 +190,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	case len(repoGroupFilters) > 1:
 		// This is a rare case, so don't bother proposing queries.
 		return &searchAlert{
+			stores:         r.stores,
 			prometheusType: "no_resolved_repos__more_than_one_repogroup",
 			title:          "No repository exists in all specified groups and satisfies all of your repo: filters.",
 			description:    "Expand your repository filters to see results",
@@ -186,6 +199,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	case len(repoGroupFilters) == 1 && len(repoFilters) > 1:
 		if globbing {
 			return &searchAlert{
+				stores:         r.stores,
 				prometheusType: "no_resolved_repos__try_remove_filters_for_repogroup",
 				title:          fmt.Sprintf("No repositories in repogroup:%s satisfied all of your repo: filters.", repoGroupFilters[0]),
 				description:    "Remove repo: filters to see results",
@@ -232,6 +246,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 		}
 
 		return &searchAlert{
+			stores:          r.stores,
 			prometheusType:  "no_resolved_repos__try_remove_filters_for_repogroup",
 			title:           fmt.Sprintf("No repositories in repogroup:%s satisfied all of your repo: filters.", repoGroupFilters[0]),
 			description:     "Expand your repository filters to see results",
@@ -241,6 +256,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	case len(repoGroupFilters) == 1 && len(repoFilters) == 1:
 		if globbing {
 			return &searchAlert{
+				stores:         r.stores,
 				prometheusType: "no_resolved_repogroups",
 				title:          fmt.Sprintf("No repositories in repogroup:%s satisfied all of your repo: filters.", repoGroupFilters[0]),
 				description:    "Remove repo: filters to see results",
@@ -269,6 +285,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 			patternType: r.patternType,
 		})
 		return &searchAlert{
+			stores:          r.stores,
 			prometheusType:  "no_resolved_repogroups",
 			title:           fmt.Sprintf("No repositories in repogroup:%s satisfied all of your repo: filters.", repoGroupFilters[0]),
 			description:     "Expand your repository filters to see results",
@@ -278,6 +295,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	case len(repoGroupFilters) == 0 && len(repoFilters) > 1:
 		if globbing {
 			return &searchAlert{
+				stores:         r.stores,
 				prometheusType: "no_resolved_repos__suggest_add_remove_repos",
 				title:          "No repositories satisfied all of your repo: filters.",
 				description:    "Remove repo: filters to see results",
@@ -305,6 +323,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 			query:       withoutRepoFields,
 		})
 		return &searchAlert{
+			stores:          r.stores,
 			prometheusType:  "no_resolved_repos__suggest_add_remove_repos",
 			title:           "No repositories satisfied all of your repo: filters.",
 			description:     "Expand your repo: filters to see results",
@@ -317,12 +336,14 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 			if needsRepoConfig, err := needsRepositoryConfiguration(ctx); err == nil && needsRepoConfig {
 				if isSiteAdmin {
 					return &searchAlert{
+						stores:      r.stores,
 						title:       "No repositories or code hosts configured",
 						description: "To start searching code, first go to site admin to configure repositories and code hosts.",
 					}
 
 				} else {
 					return &searchAlert{
+						stores:      r.stores,
 						title:       "No repositories or code hosts configured",
 						description: "To start searching code, ask the site admin to configure and enable repositories.",
 					}
@@ -332,6 +353,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 
 		if globbing {
 			return &searchAlert{
+				stores:         r.stores,
 				prometheusType: "no_resolved_repos__generic",
 				title:          "No repositories satisfied your repo: filter",
 				description:    "Modify your repo: filter to see results",
@@ -379,6 +401,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 			})
 		}
 		return &searchAlert{
+			stores:          r.stores,
 			prometheusType:  "no_resolved_repos__generic",
 			title:           "No repositories satisfied your repo: filter",
 			description:     "Modify your repo: filter to see results",
@@ -387,6 +410,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 	}
 	// Should be unreachable. Return a generic alert if reached.
 	return &searchAlert{
+		stores:      r.stores,
 		title:       "No repository results.",
 		description: "There are no repositories to search.",
 	}
@@ -395,6 +419,7 @@ func (r *searchResolver) alertForNoResolvedRepos(ctx context.Context) *searchAle
 func (r *searchResolver) alertForInvalidRevision(revision string) *searchAlert {
 	revision = strings.TrimSuffix(revision, "^0")
 	return &searchAlert{
+		stores:      r.stores,
 		title:       "Invalid revision syntax",
 		description: fmt.Sprintf("We don't know how to interpret the revision (%s) you specified. Learn more about the revision syntax in our documentation: https://docs.sourcegraph.com/code_search/reference/queries#repository-revisions.", revision),
 	}
@@ -425,6 +450,7 @@ func (r *searchResolver) alertForOverRepoLimit(ctx context.Context) *searchAlert
 
 	buildAlert := func(proposedQueries []*searchQueryDescription, description string) *searchAlert {
 		return &searchAlert{
+			stores:          r.stores,
 			prometheusType:  "over_repo_limit",
 			title:           "Too many matching repositories",
 			proposedQueries: proposedQueries,
@@ -513,7 +539,7 @@ func (r *searchResolver) alertForOverRepoLimit(ctx context.Context) *searchAlert
 	return buildAlert(proposedQueries, description)
 }
 
-func alertForDiffCommitSearch(multiErr *multierror.Error) (newMultiErr *multierror.Error, alert *searchAlert) {
+func alertForDiffCommitSearch(stores *stores, multiErr *multierror.Error) (newMultiErr *multierror.Error, alert *searchAlert) {
 	if multiErr == nil {
 		return newMultiErr, alert
 	}
@@ -522,6 +548,7 @@ func alertForDiffCommitSearch(multiErr *multierror.Error) (newMultiErr *multierr
 	for _, err := range multiErr.Errors {
 		if ok := errors.As(err, rErr); ok {
 			alert = &searchAlert{
+				stores:         stores,
 				prometheusType: "exceeded_diff_commit_search_limit",
 				title:          fmt.Sprintf("Too many matching repositories for %s search to handle", rErr.ResultType),
 				description:    fmt.Sprintf(`%s search can currently only handle searching over %d repositories at a time. Try using the "repo:" filter to narrow down which repositories to search, or using 'after:"1 week ago"'. Tracking issue: https://github.com/sourcegraph/sourcegraph/issues/6826`, strings.Title(rErr.ResultType), rErr.Max),
@@ -530,6 +557,7 @@ func alertForDiffCommitSearch(multiErr *multierror.Error) (newMultiErr *multierr
 		}
 		if ok := errors.As(err, tErr); ok {
 			alert = &searchAlert{
+				stores:         stores,
 				prometheusType: "exceeded_diff_commit_with_time_search_limit",
 				title:          fmt.Sprintf("Too many matching repositories for %s search to handle", tErr.ResultType),
 				description:    fmt.Sprintf(`%s search can currently only handle searching over %d repositories at a time. Try using the "repo:" filter to narrow down which repositories to search. Tracking issue: https://github.com/sourcegraph/sourcegraph/issues/6826`, strings.Title(tErr.ResultType), tErr.Max),
@@ -544,17 +572,19 @@ func alertForDiffCommitSearch(multiErr *multierror.Error) (newMultiErr *multierr
 // alertForStructuralSearch filters certain errors from multiErr and converts
 // them to an alert. We surface one alert at a time, so for multiple errors only
 // the last converted error will be surfaced in the alert.
-func alertForStructuralSearch(multiErr *multierror.Error) (newMultiErr *multierror.Error, alert *searchAlert) {
+func alertForStructuralSearch(stores *stores, multiErr *multierror.Error) (newMultiErr *multierror.Error, alert *searchAlert) {
 	if multiErr != nil {
 		for _, err := range multiErr.Errors {
 			if strings.Contains(err.Error(), "Worker_oomed") || strings.Contains(err.Error(), "Worker_exited_abnormally") {
 				alert = &searchAlert{
+					stores:         stores,
 					prometheusType: "structural_search_needs_more_memory",
 					title:          "Structural search needs more memory",
 					description:    "Running your structural search may require more memory. If you are running the query on many repositories, try reducing the number of repositories with the `repo:` filter.",
 				}
 			} else if strings.Contains(err.Error(), "Out of memory") {
 				alert = &searchAlert{
+					stores:         stores,
 					prometheusType: "structural_search_needs_more_memory__give_searcher_more_memory",
 					title:          "Structural search needs more memory",
 					description:    `Running your structural search requires more memory. You could try reducing the number of repositories with the "repo:" filter. If you are an administrator, try double the memory allocated for the "searcher" service. If you're unsure, reach out to us at support@sourcegraph.com.`,
@@ -567,6 +597,7 @@ func alertForStructuralSearch(multiErr *multierror.Error) (newMultiErr *multierr
 					msg = "Learn more about managing indexed repositories in our documentation: https://docs.sourcegraph.com/admin/search#indexed-search."
 				}
 				alert = &searchAlert{
+					stores:         stores,
 					prometheusType: "structural_search_on_zero_indexed_repos",
 					title:          "Unindexed repositories or repository revisions with structural search",
 					description:    fmt.Sprintf("Structural search currently only works on indexed repositories or revisions. Some of the repositories or revisions to search are not indexed, so we can't return results for them. %s", msg),
@@ -641,7 +672,7 @@ func pathParentsByFrequency(paths []string) []string {
 // year 1. As a workaround, wrap instantiates start with time.now().
 // TODO(rvantonder): #10801.
 func (a searchAlert) wrap() *SearchResultsResolver {
-	return &SearchResultsResolver{alert: &a, start: time.Now()}
+	return &SearchResultsResolver{stores: a.stores, alert: &a, start: time.Now()}
 }
 
 // capFirst capitalizes the first rune in the given string. It can be safely
@@ -659,6 +690,7 @@ func capFirst(s string) string {
 
 func (a searchAlert) Results(context.Context) (*SearchResultsResolver, error) {
 	alert := &searchAlert{
+		stores:          a.stores,
 		prometheusType:  a.prometheusType,
 		title:           a.title,
 		description:     a.description,
