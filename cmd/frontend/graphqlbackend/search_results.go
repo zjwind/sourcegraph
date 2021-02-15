@@ -1955,6 +1955,45 @@ func (r *searchResolver) selectResults(results []SearchResultResolver) []SearchR
 	return dedup.Results()
 }
 
+func (r *searchResolver) withSelect(parent Streamer) Streamer {
+	value, _ := r.Query.StringValue(query.FieldSelect)
+	if value == "" {
+		return results
+	}
+	sm, _ := filter.SelectPathFromString(value) // Invariant: select is validated.
+
+	dedup := NewDeduper()
+
+	return StreamFunc(func(event SearchEvent) {
+		// need a mutex on dedup
+
+		filtered := event.Results[:]
+		for _, result := range event.Results {
+			var current SearchResultResolver
+			switch v := result.(type) {
+			case *FileMatchResolver:
+				current = v.Select(sm)
+			case *RepositoryResolver:
+				current = v.Select(sm)
+			case *CommitSearchResultResolver:
+				current = v.Select(sm)
+			default:
+				current = result
+			}
+
+			if current == nil {
+				continue
+			}
+			if dedup.Add(current) {
+				filtered = append(filtered, current)
+			}
+		}
+
+		event.Results = filtered
+		parent.Send(event)
+	})
+}
+
 func (r *searchResolver) sortResults(ctx context.Context, results []SearchResultResolver) {
 	var exactPatterns map[string]struct{}
 	if getBoolPtr(r.UserSettings.SearchGlobbing, false) {
