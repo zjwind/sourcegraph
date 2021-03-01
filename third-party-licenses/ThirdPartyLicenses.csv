@@ -336,9 +336,10 @@ Go,github.com/sourcegraph/lsif-protocol,v1.0.0,MIT,"",Approved
 Go,github.com/sourcegraph/oauth2,v0.0.0-20201011192344-605770292164,New BSD,"",Approved
 Go,github.com/sourcegraph/syntaxhighlight,v0.0.0-20170531221838-bd320f5d308e,New BSD,"",Approved
 Go,github.com/sourcegraph/yaml,v1.0.1-0.20200714132230-56936252f152,MIT,"",Approved
-Go,github.com/sourcegraph/zoekt,v0.0.0-20210216134814-a58c3d2968a6,Apache 2.0,"",Approved
+Go,github.com/sourcegraph/zoekt,v0.0.0-20210225093519-da52e7c141aa,Apache 2.0,"",Approved
 Go,github.com/src-d/gcfg,v1.4.0,New BSD,"",Approved
 Go,github.com/stripe/stripe-go,v70.15.0,MIT,"",Approved
+Go,github.com/throttled/throttled/v2,v2.7.1,New BSD,"",Approved
 Go,github.com/tidwall/gjson,v1.6.1,MIT,"",Approved
 Go,github.com/tidwall/match,v1.0.1,MIT,"",Approved
 Go,github.com/tidwall/pretty,v1.0.2,MIT,"",Approved
@@ -536,6 +537,7 @@ Yarn,react-router-dom,5.2.0,MIT,Unknown,Approved
 Yarn,react-smooth,1.0.5,MIT,https://github.com/recharts/react-smooth#readme,Approved
 Yarn,react-stripe-elements,6.1.2,MIT,https://www.stripe.com,Approved
 Yarn,react-style-singleton,2.1.0,MIT,https://github.com/theKashey/react-style-singleton#readme,Approved
+Yarn,react-textarea-autosize,8.3.0,MIT,httsps://andreypopp.com/,Approved
 Yarn,react-transition-group,2.9.0,New BSD,https://github.com/reactjs/react-transition-group#readme,Approved
 Yarn,react-visibility-sensor,5.1.1,MIT,Unknown,Approved
 Yarn,reactstrap,8.4.1,MIT,https://github.com/reactstrap/reactstrap#readme,Approved
@@ -584,6 +586,7 @@ Yarn,timsort,0.3.0,MIT,https://github.com/mziccard/node-timsort,Approved
 Yarn,tiny-invariant,1.0.3,MIT,Unknown,Approved
 Yarn,tiny-warning,1.0.3,MIT,Unknown,Approved
 Yarn,toggle-selection,1.0.6,MIT,sudodoki.name,Approved
+Yarn,ts-essentials,2.0.12,MIT,Unknown,Approved
 Yarn,ts-key-enum,2.0.7,MIT,https://gitlab.com/nfriend/ts-key-enum#readme,Approved
 Yarn,tslib,1.13.0,BSD Zero Clause License,https://www.typescriptlang.org/,Approved
 Yarn,tslib,2.0.3,BSD Zero Clause License,https://www.typescriptlang.org/,Approved
@@ -594,7 +597,10 @@ Yarn,uniq,1.0.1,MIT,Unknown,Approved
 Yarn,uniqs,2.0.0,MIT,Unknown,Approved
 Yarn,unquote,1.1.1,MIT,https://github.com/lakenen/node-unquote,Approved
 Yarn,use-callback-ref,1.2.4,MIT,Unknown,Approved
+Yarn,use-composed-ref,1.0.0,MIT,https://github.com/Andarist/use-composed-ref#readme,Approved
 Yarn,use-deep-compare-effect,1.6.1,MIT,https://github.com/kentcdodds/use-deep-compare-effect#readme,Approved
+Yarn,use-isomorphic-layout-effect,1.0.0,MIT,https://github.com/Andarist/use-isomorphic-layout-effect#readme,Approved
+Yarn,use-latest,1.1.0,MIT,https://github.com/Andarist/use-latest#readme,Approved
 Yarn,use-sidecar,1.0.2,MIT,https://github.com/theKashey/use-sidecar,Approved
 Yarn,util.promisify,1.0.0,MIT,https://github.com/ljharb/util.promisify#readme,Approved
 Yarn,utility-types,3.10.0,MIT,https://github.com/piotrwitek/utility-types,Approved
