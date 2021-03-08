@@ -1,22 +1,27 @@
 package query
 
-import "strings"
-
-type repoVisibility string
-
-const (
-	Any     repoVisibility = "any"
-	Private repoVisibility = "private"
-	Public  repoVisibility = "public"
+import (
+	"fmt"
+	"strings"
 )
 
-func ParseVisibility(s string) repoVisibility {
+type RepoVisibility int8
+
+const (
+	Any RepoVisibility = iota
+	Private
+	Public
+)
+
+func ParseVisibility(s string) (RepoVisibility, error) {
 	switch strings.ToLower(s) {
 	case "private":
-		return Private
+		return Private, nil
 	case "public":
-		return Public
-	default:
-		return Any
+		return Public, nil
+	case "any":
+		return Any, nil
 	}
+
+	return Any, fmt.Errorf("invalid value %q for field visibility", s)
 }

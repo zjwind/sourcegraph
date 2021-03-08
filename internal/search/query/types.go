@@ -34,6 +34,7 @@ const (
 // It will be removed in favor of a cleaner query API to access values.
 type QueryInfo interface {
 	Count() *int
+	Visibility() *RepoVisibility
 	RegexpPatterns(field string) (values, negatedValues []string)
 	StringValues(field string) (values, negatedValues []string)
 	StringValue(field string) (value, negatedValue string)
@@ -126,6 +127,18 @@ func (q Q) Count() *int {
 		count = &c
 	})
 	return count
+}
+
+func (q Q) Visibility() *RepoVisibility {
+	var visibility *RepoVisibility
+	VisitField(q, FieldVisibility, func(value string, _ bool, _ Annotation) {
+		v, err := ParseVisibility(value)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid value %q for field visibility", value))
+		}
+		visibility = &v
+	})
+	return visibility
 }
 
 func (q Q) IsCaseSensitive() bool {

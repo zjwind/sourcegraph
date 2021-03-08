@@ -209,6 +209,11 @@ func validateField(field, value string, negated bool, seen map[string]struct{}) 
 		return nil
 	}
 
+	isRepoVisibility := func() error {
+		_, err := ParseVisibility(value)
+		return err
+	}
+
 	isUnrecognizedField := func() error {
 		return fmt.Errorf("unrecognized field %q", field)
 	}
@@ -256,9 +261,10 @@ func validateField(field, value string, negated bool, seen map[string]struct{}) 
 		return satisfies(isNotNegated)
 	case
 		FieldPatternType,
-		FieldContent,
+		FieldContent:
+	case
 		FieldVisibility:
-		return satisfies(isSingular, isNotNegated)
+		return satisfies(isSingular, isNotNegated, isRepoVisibility)
 	case
 		FieldRepoHasFile:
 		return satisfies(isValidRegexp)

@@ -432,8 +432,10 @@ func (r *searchResolver) resolveRepositories(ctx context.Context, effectiveRepoF
 		archived = query.No
 	}
 
-	visibilityStr, _ := r.Query.StringValue(query.FieldVisibility)
-	visibility := query.ParseVisibility(visibilityStr)
+	visibility := query.Any
+	if setVisibility := r.Query.Visibility(); setVisibility != nil {
+		visibility = *setVisibility
+	}
 
 	commitAfter, _ := r.Query.StringValue(query.FieldRepoHasCommitAfter)
 	searchContextSpec, _ := r.Query.StringValue(query.FieldContext)
