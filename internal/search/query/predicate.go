@@ -34,9 +34,7 @@ var DefaultPredicateRegistry = predicateRegistry{
 	},
 }
 
-type predicateFactory func() Predicate
-
-type predicateRegistry map[string]map[string]predicateFactory
+type predicateRegistry map[string]map[string]func() Predicate
 
 func (pr predicateRegistry) Get(field, name, params string) (Predicate, error) {
 	fieldPredicates, ok := pr[field]
@@ -84,7 +82,6 @@ func (f *FileContainsPredicate) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// TODO (@camdencheek): should we have Field and PredicateName types, or is string alright?
 func (f *FileContainsPredicate) Field() string { return FieldFile }
 func (f *FileContainsPredicate) Name() string  { return "contains" }
 func (f *FileContainsPredicate) String() string {
@@ -106,8 +103,6 @@ func (f *FileContainsPredicate) Query() Q {
 			Field: "select",
 			Value: "file",
 		},
-		// TODO this runs into the same issues that AND queries do, in that we can't be sure
-		// that we're getting enough to get results.
 		Parameter{
 			Field: "count",
 			Value: "10000",
@@ -115,11 +110,15 @@ func (f *FileContainsPredicate) Query() Q {
 	}
 }
 
-type PredicateWithRepos struct {
+// ScopedPredicate is a predicate that wraps another predicate and overrides
+// its Query() method to include an additional set of nodes. This is useful
+// for adding repo: and file: nodes to a predicate's query to reduce the amount
+// of work needed to run the predicate query.
+type ScopedPredicate struct {
 	Predicate
-	RepoNodes []Node
+	ExtraNodes []Node
 }
 
-func (p PredicateWithRepos) Query() Q {
-	return append(p.RepoNodes, p.Predicate.Query()...)
+func (p ScopedPredicate) Query() Q {
+	return append(p.ExtraNodes, p.Predicate.Query()...)
 }

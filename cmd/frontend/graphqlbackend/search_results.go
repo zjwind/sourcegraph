@@ -862,10 +862,10 @@ func invalidateRepoCache(q []query.Node) bool {
 }
 
 func (r *searchResolver) Results(ctx context.Context) (srr *SearchResultsResolver, err error) {
-	return r.queryResults(ctx, r.Query)
+	return r.resultsRecursive(ctx, r.Query)
 }
 
-func (r *searchResolver) queryResults(ctx context.Context, q query.Q) (srr *SearchResultsResolver, err error) {
+func (r *searchResolver) resultsRecursive(ctx context.Context, q query.Q) (srr *SearchResultsResolver, err error) {
 	tr, ctx := trace.New(ctx, "Results", "")
 	defer func() {
 		tr.SetError(err)
@@ -886,7 +886,7 @@ func (r *searchResolver) queryResults(ctx context.Context, q query.Q) (srr *Sear
 		return r.runPredicate(ctx, p)
 	})
 	if err != nil && errors.Is(err, query.ErrPredicateNoResults) {
-		return &SearchResultsResolver{start: time.Now()}, nil
+		return &SearchResultsResolver{}, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -923,7 +923,7 @@ func (r *searchResolver) queryResults(ctx context.Context, q query.Q) (srr *Sear
 }
 
 func (r *searchResolver) runPredicate(ctx context.Context, p query.Predicate) ([]query.Node, error) {
-	srr, err := r.queryResults(ctx, p.Query())
+	srr, err := r.resultsRecursive(ctx, p.Query())
 	if err != nil {
 		return nil, err
 	}

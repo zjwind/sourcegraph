@@ -770,26 +770,24 @@ func MapPredicates(q Q, f func(Predicate) ([]Node, error)) (newQ Q, topErr error
 
 		// Add the repository nodes on the query to the predicate so that we don't
 		// do an unnecessary global search
-		var repoNodes []Node
+		// TODO don't include predicate nodes
+		var extraNodes []Node
 		VisitField(q, FieldRepo, func(value string, negated bool, ann Annotation) {
-			repoNodes = append(repoNodes, Parameter{
+			extraNodes = append(extraNodes, Parameter{
 				Field:      FieldRepo,
 				Value:      value,
 				Negated:    negated,
 				Annotation: ann,
 			})
 		})
-		predicateWithRepos := PredicateWithRepos{
-			RepoNodes: repoNodes,
-			Predicate: predicate,
+		scopedPredicate := ScopedPredicate{
+			ExtraNodes: extraNodes,
+			Predicate:  predicate,
 		}
 
-		expanded, err := f(predicateWithRepos)
+		expanded, err := f(scopedPredicate)
 		topErr = err
 		if neg {
-			// TODO apply demorgan's laws and negate expanded.
-			// This isn't super straightforward because node types are not pointers,
-			// so we can't just mutate them in place
 			topErr = errors.New("predicates do not currently support negation")
 			return nil
 		}
