@@ -28,6 +28,11 @@ func heuristicLabels(nodes []Node) string {
 	return strings.Join(labels.String(), ",")
 }
 
+func TestParsePredicate(t *testing.T) {
+	Parse(`repo:contains(file:test\.go)`, ParserOptions{})
+	// Parse(`repo:contains()`, ParserOptions{})
+}
+
 func TestParseParameterList(t *testing.T) {
 	type value struct {
 		Result       string
