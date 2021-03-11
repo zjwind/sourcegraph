@@ -942,7 +942,7 @@ func searchResultsToRepoNodes(srs []SearchResultResolver) ([]query.Node, error) 
 	for _, rs := range srs {
 		repoResolver, ok := rs.(*RepositoryResolver)
 		if !ok {
-			return nil, fmt.Errorf("unexpected non-repo result of type %T", rs)
+			return nil, fmt.Errorf("expected type %T, but got %T", &RepositoryResolver{}, rs)
 		}
 
 		nodes = append(nodes, query.Parameter{
