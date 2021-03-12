@@ -780,6 +780,10 @@ func MapPredicates(q Q, f func(Predicate) ([]Node, error)) (newQ Q, topErr error
 			return nil
 		}
 
+		if len(expanded) == 1 {
+			return expanded[0]
+		}
+
 		return Operator{
 			Kind:     Or,
 			Operands: expanded,

@@ -923,6 +923,9 @@ func (r *searchResolver) resultsRecursive(ctx context.Context, q query.Q) (srr *
 }
 
 func (r *searchResolver) runPredicate(ctx context.Context, p query.Predicate, parent query.Q) ([]query.Node, error) {
+	// Always invalidate for predicates because the initially resolved repositories
+	// are not necessarily the repositories that we want to use for the expansion.
+	r.invalidateRepoCache = true
 	srr, err := r.resultsRecursive(ctx, p.Query(parent))
 	if err != nil {
 		return nil, err
@@ -947,7 +950,7 @@ func searchResultsToRepoNodes(srs []SearchResultResolver) ([]query.Node, error) 
 
 		nodes = append(nodes, query.Parameter{
 			Field: query.FieldRepo,
-			Value: repoResolver.Name(),
+			Value: "^" + regexp.QuoteMeta(repoResolver.Name()) + "$",
 		})
 	}
 
