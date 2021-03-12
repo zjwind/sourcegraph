@@ -124,6 +124,9 @@ func (f *RepoContainsPredicate) Query(parent Q) Q {
 	nodes = append(nodes, Parameter{
 		Field: FieldSelect,
 		Value: "repo",
+	}, Parameter{
+		Field: FieldCount,
+		Value: "99999",
 	})
 
 	if f.File != "" {
