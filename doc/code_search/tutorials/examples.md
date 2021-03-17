@@ -19,6 +19,9 @@ Below are examples that search repositories on [Sourcegraph.com](https://sourceg
 - [Recent dependency changes](https://sourcegraph.com/search?q=repo:github%5C.com/sourcegraph/+file:package.json+type:diff+after:%221+week+ago%22)<br/>
 `file:package.json type:diff after:"1 week ago"`
 
+- [Files that are Apache licensed](https://sourcegraph.com/search?q=licensed+to+the+apache+software+foundation+select:file&patternType=literal)<br/>
+`licensed to the apache software foundation select:file`
+
 ## When to use regex search mode
 
 Sourcegraph's default literal search mode is line-based and will not match across lines, so regex can be useful when you wish to do so:
