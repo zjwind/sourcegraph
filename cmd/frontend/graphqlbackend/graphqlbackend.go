@@ -334,6 +334,11 @@ func prometheusGraphQLRequestName(requestName string) string {
 	if requestName == "CodeIntelSearch" {
 		return requestName
 	}
+
+	if strings.HasPrefix(requestName, "Sentinel") {
+		return requestName
+	}
+
 	return "other"
 }
 

@@ -101,6 +101,10 @@ const (
 	// SourceBrowser indicates the request likely came from a web browser.
 	SourceBrowser SourceType = "browser"
 
+	// SourceMonitoring indicates the request is a test request from our monitoring
+	// infrastructure (most likely search-blitz)
+	SourceMonitoring SourceType = "monitoring"
+
 	// SourceOther indicates the request likely came from a non-browser HTTP client.
 	SourceOther SourceType = "other"
 )

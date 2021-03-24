@@ -528,5 +528,9 @@ func GuessSource(r *http.Request) trace.SourceType {
 			return trace.SourceBrowser
 		}
 	}
+
+	if strings.Contains(userAgent, "monitoring") {
+		return trace.SourceMonitoring
+	}
 	return trace.SourceOther
 }
