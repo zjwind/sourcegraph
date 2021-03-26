@@ -316,6 +316,7 @@ func (s *Server) SyncRepoState(interval time.Duration, batchSize, perSecond int)
 				log15.Error("Syncing repo state", "error ", err)
 			}
 		}
+		oldAddrs = addrs
 		time.Sleep(interval)
 	}
 }
