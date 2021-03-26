@@ -317,7 +317,7 @@ func (s *Server) SyncRepoState(interval time.Duration, batchSize, perSecond int)
 			}
 		}
 		oldAddrs = addrs
-		time.Sleep(interval)
+		time.Sleep(5 * time.Second)
 	}
 }
 
