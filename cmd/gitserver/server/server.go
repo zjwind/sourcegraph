@@ -308,17 +308,25 @@ func (s *Server) Janitor(interval time.Duration) {
 func (s *Server) SyncRepoState(interval time.Duration, batchSize, perSecond int) {
 	var oldAddrs []string
 	for {
+		interval := interval
 		// Take a copy to ensure there's no chance of it being mutated
 		addrs := append([]string{}, conf.Get().ServiceConnections.GitServers...)
 		// If we've never run or the list of addresses has remained stable, go ahead
 		if len(oldAddrs) == 0 || reflect.DeepEqual(addrs, oldAddrs) {
-			if err := s.syncRepoState(addrs, batchSize, perSecond); err != nil {
+			err := s.syncRepoState(addrs, batchSize, perSecond)
+			if err != nil {
 				log15.Error("Syncing repo state", "error ", err)
+				if errors.Is(err, errMissingShardID) {
+					// If we're missing shardID, wait for a shorter period of time
+					interval = 5 * time.Second
+				}
 			}
 		}
 		time.Sleep(interval)
 	}
 }
+
+var errMissingShardID = errors.New("shardID not set")
 
 // getShardID get the current shardID. It returns an error if it has not been set
 // yet.
@@ -326,7 +334,7 @@ func (s *Server) getShardID() (string, error) {
 	s.shardIDMu.RLock()
 	defer s.shardIDMu.RUnlock()
 	if s.shardID == "" {
-		return "", errors.New("shardID not set")
+		return "", errMissingShardID
 	}
 	return s.shardID, nil
 }
