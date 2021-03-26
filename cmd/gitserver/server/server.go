@@ -369,7 +369,7 @@ func shardIDFromFrontend(r *http.Request) string {
 	// TODO: This feels a bit brittle as we may change the name of our frontend
 	// instance at some point and also because the name itself it set based on the
 	// binary name. See client.NewClient
-	if ua == "frontend" && actor == "internal" {
+	if (ua == "frontend" || ua == "repo-updater") && actor == "internal" {
 		return r.Host
 	}
 	return ""
