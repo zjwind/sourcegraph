@@ -168,6 +168,10 @@ type Server struct {
 	cloneLimiter     *mutablelimiter.Limiter
 	cloneableLimiter *mutablelimiter.Limiter
 
+	// rpsLimiter limits the remote code host git operations done per second
+	// per gitserver instance
+	rpsLimiter *rate.Limiter
+
 	repoUpdateLocksMu sync.Mutex // protects the map below and also updates to locks.once
 	repoUpdateLocks   map[api.RepoName]*locks
 }
@@ -252,6 +256,19 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.cloneLimiter.SetLimit(limit)
 		s.cloneableLimiter.SetLimit(limit)
+	})
+
+	s.rpsLimiter = rate.NewLimiter(rate.Inf, 10)
+	setRPSLimiter := func() {
+		if maxRequestsPerSecond := conf.GitMaxCodehostRequestsPerSecond(); maxRequestsPerSecond == -1 {
+			// As a special case, -1 means no limiting
+			s.rpsLimiter.SetLimit(rate.Inf)
+		} else {
+			s.rpsLimiter.SetLimit(rate.Limit(maxRequestsPerSecond))
+		}
+	}
+	conf.Watch(func() {
+		setRPSLimiter()
 	})
 
 	// shardIDMiddleware causes us to try and set the server shardID to that of the
@@ -1278,6 +1295,11 @@ func (s *Server) cloneRepo(ctx context.Context, repo api.RepoName, opts *cloneOp
 		return "", err // err will be a context error
 	}
 	defer cancel()
+
+	if err = s.rpsLimiter.Wait(ctx); err != nil {
+		return "", err
+	}
+
 	if err := syncer.IsCloneable(ctx, remoteURL); err != nil {
 		return "", fmt.Errorf("error cloning repo: repo %s not cloneable: %s", repo, redactor.redact(err.Error()))
 	}
@@ -1308,6 +1330,10 @@ func (s *Server) cloneRepo(ctx context.Context, repo api.RepoName, opts *cloneOp
 			return err
 		}
 		defer cancel1()
+
+		if err = s.rpsLimiter.Wait(ctx); err != nil {
+			return err
+		}
 
 		ctx, cancel2 := context.WithTimeout(ctx, longGitCommandTimeout)
 		defer cancel2()
@@ -1643,6 +1669,10 @@ func (s *Server) doBackgroundRepoUpdate(repo api.RepoName) error {
 		return err
 	}
 	defer cancel2()
+
+	if err = s.rpsLimiter.Wait(ctx); err != nil {
+		return err
+	}
 
 	repo = protocol.NormalizeRepo(repo)
 	dir := s.dir(repo)
