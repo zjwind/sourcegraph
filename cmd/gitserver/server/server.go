@@ -364,7 +364,6 @@ func (s *Server) maybeSetShardID(id string, addrs []string) {
 	}
 	s.shardIDMu.Lock()
 	defer s.shardIDMu.Unlock()
-	log15.Error("DEBUG: Setting shard ID", "id", id)
 	s.shardID = id
 }
 
@@ -383,7 +382,6 @@ func shardIDFound(shardID string, addrs []string) bool {
 func shardIDFromFrontend(r *http.Request) string {
 	ua := r.Header.Get("User-Agent")
 	actor := r.Header.Get(protocol.HeaderSourcegraphActor)
-	log15.Error("shardIDFromFrontend", "ua", ua, "actor", actor, "host", r.Host)
 	// TODO: This feels a bit brittle as we may change the name of our frontend
 	// instance at some point and also because the name itself it set based on the
 	// binary name. See client.NewClient
