@@ -353,20 +353,18 @@ func (s *Server) getShardID() (string, error) {
 // the new value is different.
 func (s *Server) maybeSetShardID(id string, addrs []string) {
 	if id == "" {
-		log15.Warn("Not setting shardID, it's blank")
 		return
 	}
 	if !shardIDFound(id, addrs) {
-		log15.Warn("Shard ID not found", "id", id, "addrs", addrs)
 		return
 	}
 	if current, _ := s.getShardID(); current == id {
 		// Nothing needs to change
-		log15.Warn("Not setting shard id, it's already set", "current", current)
 		return
 	}
 	s.shardIDMu.Lock()
 	defer s.shardIDMu.Unlock()
+	log15.Error("DEBUG: Setting shard ID", "id", id)
 	s.shardID = id
 }
 
