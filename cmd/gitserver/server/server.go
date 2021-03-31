@@ -351,20 +351,23 @@ func (s *Server) getShardID() (string, error) {
 
 // maybeSetShardID sets shardID if h is not blank, it can be found in addrs and
 // the new value is different.
-func (s *Server) maybeSetShardID(h string, addrs []string) {
-	if h == "" {
+func (s *Server) maybeSetShardID(id string, addrs []string) {
+	if id == "" {
+		log15.Warn("Not setting shardID, it's blank")
 		return
 	}
-	if !shardIDFound(h, addrs) {
+	if !shardIDFound(id, addrs) {
+		log15.Warn("Shard ID not found", "id", id, "addrs", addrs)
 		return
 	}
-	if current, _ := s.getShardID(); current == h {
+	if current, _ := s.getShardID(); current == id {
 		// Nothing needs to change
+		log15.Warn("Not setting shard id, it's already set", "current", current)
 		return
 	}
 	s.shardIDMu.Lock()
 	defer s.shardIDMu.Unlock()
-	s.shardID = h
+	s.shardID = id
 }
 
 // shardIDFound returns true only if our shardID can be found in addrs
