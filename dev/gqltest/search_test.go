@@ -273,6 +273,11 @@ func testSearchClient(t *testing.T, client searchClient) {
 				query: "repohasfile:README",
 			},
 			{
+				name:       "multiple repohasfile returns or, not and",
+				query:      "repohasfile:README repohasfile:thisfiledoesnotexist_1571751",
+				zeroResult: true,
+			},
+			{
 				name:  "repo search by name, nonzero result",
 				query: "repo:go-diff$",
 			},
