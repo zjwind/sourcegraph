@@ -25,7 +25,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/inconshreveable/log15"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -282,17 +281,17 @@ func (s *Server) Handler() http.Handler {
 
 	// shardIDMiddleware causes us to try and set the server shardID to that of the
 	// shardID received in requests from frontend.
-	shardIDMiddleware := func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			addrs := conf.Get().ServiceConnections.GitServers
-			shardID := shardIDFromFrontend(r)
-			s.maybeSetShardID(shardID, addrs)
-			h.ServeHTTP(rw, r)
-		})
-	}
+	//shardIDMiddleware := func(h http.Handler) http.Handler {
+	//	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	//		addrs := conf.Get().ServiceConnections.GitServers
+	//		shardID := shardIDFromFrontend(r)
+	//		s.maybeSetShardID(shardID, addrs)
+	//		h.ServeHTTP(rw, r)
+	//	})
+	//}
 
-	router := mux.NewRouter()
-	router.Use(shardIDMiddleware)
+	router := http.NewServeMux()
+	//router.Use(shardIDMiddleware)
 	router.HandleFunc("/archive", s.handleArchive)
 	router.HandleFunc("/exec", s.handleExec)
 	router.HandleFunc("/p4-exec", s.handleP4Exec)
