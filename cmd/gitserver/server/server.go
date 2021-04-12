@@ -282,17 +282,18 @@ func (s *Server) Handler() http.Handler {
 
 	// shardIDMiddleware causes us to try and set the server shardID to that of the
 	// shardID received in requests from frontend.
-	shardIDMiddleware := func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			addrs := conf.Get().ServiceConnections.GitServers
-			shardID := shardIDFromFrontend(r)
-			s.maybeSetShardID(shardID, addrs)
-			h.ServeHTTP(rw, r)
-		})
-	}
+	//shardIDMiddleware := func(h http.Handler) http.Handler {
+	//	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	//		addrs := conf.Get().ServiceConnections.GitServers
+	//		shardID := shardIDFromFrontend(r)
+	//		s.maybeSetShardID(shardID, addrs)
+	//		h.ServeHTTP(rw, r)
+	//	})
+	//}
 
+	s.shardID = "127.0.0.1:3178"
 	router := mux.NewRouter()
-	router.Use(shardIDMiddleware)
+	//router.Use(shardIDMiddleware)
 	router.HandleFunc("/archive", s.handleArchive)
 	router.HandleFunc("/exec", s.handleExec)
 	router.HandleFunc("/p4-exec", s.handleP4Exec)
