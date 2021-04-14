@@ -2,7 +2,7 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react'
 import classNames from 'classnames'
 import { isEqual } from 'lodash'
 import { TelemetryProps } from '@sourcegraph/shared/src/telemetry/telemetryService'
-import { RouteComponentProps } from 'react-router'
+import { Redirect, RouteComponentProps } from 'react-router'
 import { PageTitle } from '../../../components/PageTitle'
 import { CheckboxRepositoryNode } from './RepositoryNode'
 import { Form } from '@sourcegraph/branded/src/components/Form'
@@ -25,7 +25,7 @@ import { queryUserPublicRepositories, setUserPublicRepositories } from '../../..
 import { asError, ErrorLike, isErrorLike } from '@sourcegraph/shared/src/util/errors'
 import AlertCircleIcon from 'mdi-react/AlertCircleIcon'
 import { PageSelector } from '@sourcegraph/wildcard'
-import { UserAwayConfirmationModal } from './UserAwayConfirmationModal'
+import { AwayPrompt } from './AwayPrompt'
 
 interface Props extends RouteComponentProps, TelemetryProps, UserRepositoriesUpdateProps {
     userID: string
@@ -53,7 +53,6 @@ interface GitLabConfig {
 const PER_PAGE = 25
 const SIX_SECONDS = 6000
 const EIGHT_SECONDS = 8000
-const ALLOW_NAVIGATION = 'allow'
 
 // initial state constants
 const emptyRepos: Repo[] = []
@@ -129,7 +128,6 @@ const displayAffiliateRepoProblems = (
  * A page to manage the repositories a user syncs from their connected code hosts.
  */
 export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> = ({
-    history,
     userID,
     routingPrefix,
     telemetryService,
@@ -150,6 +148,7 @@ export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> 
     const [codeHostFilter, setCodeHostFilter] = useState('')
     const [filteredRepos, setFilteredRepos] = useState<Repo[]>([])
     const [fetchingRepos, setFetchingRepos] = useState<initialFetchingReposState>()
+    const [changesSaved, setChangesSaved] = useState(false)
 
     // since we're making many different GraphQL requests - track affiliate and
     // manually added public repo errors separately
@@ -368,14 +367,18 @@ export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> 
         setPage(1)
     }, [repoState.repos, codeHostFilter, query])
 
-    const didRepoSelectionChange = useCallback((): boolean => {
+    const hasUnsavedChanges = useCallback((): boolean => {
+        if (changesSaved) {
+            return false
+        }
+
         const publicRepos = publicRepoState.enabled && publicRepoState.repos ? publicRepoState.repos.split('\n') : []
         const affiliatedRepos = selectionState.repos.keys()
-
         const currentlySelectedRepos = [...publicRepos, ...affiliatedRepos]
 
+        // check if initial selection state is different
         return !isEqual(currentlySelectedRepos.sort(), onloadSelectedRepos.sort())
-    }, [onloadSelectedRepos, publicRepoState.enabled, publicRepoState.repos, selectionState.repos])
+    }, [onloadSelectedRepos, publicRepoState.enabled, publicRepoState.repos, selectionState.repos, changesSaved])
 
     // save changes and update code hosts
     const submit = useCallback(
@@ -398,7 +401,8 @@ export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> 
             }
 
             if (!selectionState.radio) {
-                return history.push(routingPrefix + '/repositories', ALLOW_NAVIGATION)
+                // if no affiliated repos were selected - navigate right away
+                return setChangesSaved(true)
             }
 
             const syncTimes = new Map<string, string>()
@@ -458,8 +462,8 @@ export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> 
                             if (result.nodes.every(codeHost => codeHost.lastSyncAt !== syncTimes.get(codeHost.id))) {
                                 const repoCount = result.nodes.reduce((sum, codeHost) => sum + codeHost.repoCount, 0)
                                 onUserRepositoriesUpdate(repoCount)
-                                // push the user back to the repo list page
-                                history.push(routingPrefix + '/repositories', ALLOW_NAVIGATION)
+                                setChangesSaved(true)
+
                                 // cancel the repeatUntil
                                 return true
                             }
@@ -485,8 +489,7 @@ export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> 
             selectionState.radio,
             selectionState.repos,
             onUserRepositoriesUpdate,
-            history,
-            routingPrefix,
+            setChangesSaved,
         ]
     )
 
@@ -800,11 +803,15 @@ export const UserSettingsManageRepositoriesPage: React.FunctionComponent<Props> 
                 )}
             </ul>
             {isErrorLike(otherPublicRepoError) && displayError(otherPublicRepoError)}
-            <UserAwayConfirmationModal
+
+            {changesSaved && <Redirect to={{ pathname: `${routingPrefix}/repositories` }} />}
+            {/* AwayPrompt will block every navigation if "when" prop is true */}
+            <AwayPrompt
                 header="Discard unsaved changes?"
                 message="Currently synced repositories will be unchanged"
-                predicate={didRepoSelectionChange}
+                when={hasUnsavedChanges}
             />
+
             <Form className="mt-4 d-flex" onSubmit={submit}>
                 <LoaderButton
                     loading={isLoading(fetchingRepos)}
