@@ -15,17 +15,36 @@ type DefinitionRequest struct {
 	Position     Position `json:"position"`
 }
 
-type DefinitionResponse struct {
-	TextDocument string `json:"textDocument"`
-	Range        Range  `json:"range"`
+type Location struct {
+	URI   string `json:"uri"`
+	Range Range  `json:"range"`
 }
 
 type DefinitionTest struct {
-	Name     string             `json:"name"`
-	Request  DefinitionRequest  `json:"request"`
-	Response DefinitionResponse `json:"response"`
+	Name     string            `json:"name"`
+	Request  DefinitionRequest `json:"request"`
+	Response Location          `json:"response"`
+}
+
+type ReferenceContext struct {
+	IncludeDeclaration bool
+}
+
+type ReferenceRequest struct {
+	TextDocument string           `json:"textDocument"`
+	Position     Position         `json:"position"`
+	Context      ReferenceContext `json:"context"`
+}
+
+type ReferenceResponse []Location
+
+type ReferencesTest struct {
+	Name     string            `json:"name"`
+	Request  ReferenceRequest  `json:"request"`
+	Response ReferenceResponse `json:"response"`
 }
 
 type LsifTest struct {
 	Definitions []DefinitionTest `json:"textDocument/definition"`
+	References  []ReferencesTest `json:"textDocument/references"`
 }
