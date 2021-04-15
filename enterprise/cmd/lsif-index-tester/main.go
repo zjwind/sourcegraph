@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -300,6 +301,28 @@ func runOneTestFile(file string, bundle *semantic.GroupedBundleDataMaps) (testFi
 	return fileResult, nil
 }
 
+func sortReferences(references []Location) func(i, j int) bool {
+	return func(i, j int) bool {
+		left := references[i]
+		right := references[j]
+
+		if left.URI > right.URI {
+			return false
+		} else if left.URI < right.URI {
+			return true
+		}
+
+		// OK, just have lines now
+		if left.Range.Start.Line > right.Range.Start.Line {
+			return false
+		} else if left.Range.Start.Line < right.Range.Start.Line {
+			return true
+		}
+
+		return i < j
+	}
+}
+
 func runOneReferencesRequest(bundle *semantic.GroupedBundleDataMaps, testCase ReferencesTest, fileResult *testFileResult) error {
 	request := testCase.Request
 
@@ -327,12 +350,17 @@ func runOneReferencesRequest(bundle *semantic.GroupedBundleDataMaps, testCase Re
 
 	semanticReferences := results[0].References
 
-	references := make([]Location, len(semanticReferences))
+	actualReferences := make([]Location, len(semanticReferences))
 	for index, ref := range semanticReferences {
-		references[index] = transformLocationToResponse(ref)
+		actualReferences[index] = transformLocationToResponse(ref)
 	}
 
-	if diff := cmp.Diff(references, testCase.Response); diff != "" {
+	expectedReferences := []Location(testCase.Response)
+
+	sort.SliceStable(actualReferences, sortReferences(actualReferences))
+	sort.SliceStable(expectedReferences, sortReferences(expectedReferences))
+
+	if diff := cmp.Diff(actualReferences, expectedReferences); diff != "" {
 		fileResult.Failed = append(fileResult.Failed, failedTest{
 			Name: testCase.Name,
 			Diff: diff,
