@@ -49,10 +49,14 @@ func DrawLocations(contents string, expected, actual Location) (string, error) {
 			return "", errors.New("Line does not exist in contents")
 		}
 
-		text := fmt.Sprintf("%s\n%s\n%s\n%s",
+		spaces := strings.Repeat(" ", len(fmt.Sprintf("%d", line)))
+		text := fmt.Sprintf("%s\n|%d| %s\n|%s| %s\n|%s| %s",
 			header(expected),
+			line,
 			splitLines[line],
+			spaces,
 			lineCarets(expected.Range, "expected"),
+			spaces,
 			lineCarets(actual.Range, "actual"),
 		)
 
