@@ -411,7 +411,7 @@ func runOneReferencesRequest(projectRoot string, bundle *semantic.GroupedBundleD
 				filesToContents[actual.URI] = contents
 			}
 
-			thisDiff, err := DrawLocations(contents, expected, actual)
+			thisDiff, err := DrawLocations(contents, expected, actual, 2)
 			if err != nil {
 				return errors.Wrap(err, "Unable to draw the pretty diff")
 			}

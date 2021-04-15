@@ -46,7 +46,7 @@ func fmtLine(line int, prefixWidth int, text string) string {
 //
 // Only operates on locations with the same URI.
 //    It doesn't make sense to diff anything here when we don't have that.
-func DrawLocations(contents string, expected, actual Location) (string, error) {
+func DrawLocations(contents string, expected, actual Location, context int) (string, error) {
 	if expected.URI != actual.URI {
 		return "", errors.New("Must pass in two locations with the same URI")
 	}
@@ -66,7 +66,6 @@ func DrawLocations(contents string, expected, actual Location) (string, error) {
 		text := header(expected) + "\n"
 
 		prefixWidth := len(fmt.Sprintf("%d", line+1))
-		context := 2
 
 		for offset := context; offset > 0; offset-- {
 			newLine := line - offset
@@ -88,8 +87,8 @@ func DrawLocations(contents string, expected, actual Location) (string, error) {
 			}
 		}
 
-		return text, nil
+		return strings.Trim(text, " \n"), nil
 	}
 
-	return "failed", nil
+	return "failed: tell TJ to implement this.", nil
 }
