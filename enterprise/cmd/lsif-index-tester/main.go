@@ -244,11 +244,11 @@ func validateDump(directory string) error {
 	return nil
 }
 
-func validateTestCases(directory string, bundle *semantic.GroupedBundleDataMaps) (testSuiteResult, error) {
-	testFiles, err := os.ReadDir(filepath.Join(directory, "lsif_tests"))
+func validateTestCases(projectRoot string, bundle *semantic.GroupedBundleDataMaps) (testSuiteResult, error) {
+	testFiles, err := os.ReadDir(filepath.Join(projectRoot, "lsif_tests"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			log15.Warn("No lsif test directory exists here", "directory", directory)
+			log15.Warn("No lsif test directory exists here", "directory", projectRoot)
 			return testSuiteResult{}, nil
 		}
 
@@ -261,8 +261,8 @@ func validateTestCases(directory string, bundle *semantic.GroupedBundleDataMaps)
 			continue
 		}
 
-		testFileName := filepath.Join(directory, "lsif_tests", file.Name())
-		fileResult, err := runOneTestFile(testFileName, bundle)
+		testFileName := filepath.Join(projectRoot, "lsif_tests", file.Name())
+		fileResult, err := runOneTestFile(projectRoot, testFileName, bundle)
 		if err != nil {
 			logFatal("Had an error while we do the test file", "file", testFileName, "err", err)
 		}
@@ -273,7 +273,7 @@ func validateTestCases(directory string, bundle *semantic.GroupedBundleDataMaps)
 	return testSuiteResult{FileResults: fileResults}, nil
 }
 
-func runOneTestFile(file string, bundle *semantic.GroupedBundleDataMaps) (testFileResult, error) {
+func runOneTestFile(projectRoot, file string, bundle *semantic.GroupedBundleDataMaps) (testFileResult, error) {
 	doc, err := ioutil.ReadFile(file)
 	if err != nil {
 		return testFileResult{}, errors.Wrap(err, "Failed to read file")
@@ -287,18 +287,48 @@ func runOneTestFile(file string, bundle *semantic.GroupedBundleDataMaps) (testFi
 	fileResult := testFileResult{Name: file}
 
 	for _, definitionTest := range testCase.Definitions {
-		if err := runOneDefinitionRequest(bundle, definitionTest, &fileResult); err != nil {
+		if err := runOneDefinitionRequest(projectRoot, bundle, definitionTest, &fileResult); err != nil {
 			return fileResult, err
 		}
 	}
 
 	for _, referencesTest := range testCase.References {
-		if err := runOneReferencesRequest(bundle, referencesTest, &fileResult); err != nil {
+		if err := runOneReferencesRequest(projectRoot, bundle, referencesTest, &fileResult); err != nil {
 			return fileResult, err
 		}
 	}
 
 	return fileResult, nil
+}
+
+func sortPosition(left, right Position) int {
+	if left.Line > right.Line {
+		return -1
+	} else if left.Line < right.Line {
+		return 1
+	}
+
+	if left.Character > right.Character {
+		return -1
+	} else if left.Character < right.Character {
+		return 1
+	}
+
+	return 0
+}
+
+func sortRange(left, right Range) int {
+	start := sortPosition(left.Start, right.Start)
+	if start != 0 {
+		return start
+	}
+
+	end := sortPosition(left.End, right.End)
+	if end != 0 {
+		return end
+	}
+
+	return 0
 }
 
 func sortReferences(references []Location) func(i, j int) bool {
@@ -312,25 +342,23 @@ func sortReferences(references []Location) func(i, j int) bool {
 			return true
 		}
 
-		// OK, just have lines now
-		if left.Range.Start.Line > right.Range.Start.Line {
-			return false
-		} else if left.Range.Start.Line < right.Range.Start.Line {
-			return true
+		cmpRange := sortRange(left.Range, right.Range)
+		if cmpRange != 0 {
+			return cmpRange > 0
 		}
 
 		return i < j
 	}
 }
 
-func runOneReferencesRequest(bundle *semantic.GroupedBundleDataMaps, testCase ReferencesTest, fileResult *testFileResult) error {
+func runOneReferencesRequest(projectRoot string, bundle *semantic.GroupedBundleDataMaps, testCase ReferencesTest, fileResult *testFileResult) error {
 	request := testCase.Request
 
-	path := request.TextDocument
+	filePath := request.TextDocument
 	line := request.Position.Line
 	character := request.Position.Character
 
-	results, err := semantic.Query(bundle, path, line, character)
+	results, err := semantic.Query(bundle, filePath, line, character)
 	if err != nil {
 		return err
 	}
@@ -360,7 +388,38 @@ func runOneReferencesRequest(bundle *semantic.GroupedBundleDataMaps, testCase Re
 	sort.SliceStable(actualReferences, sortReferences(actualReferences))
 	sort.SliceStable(expectedReferences, sortReferences(expectedReferences))
 
-	if diff := cmp.Diff(actualReferences, expectedReferences); diff != "" {
+	filesToContents := make(map[string]string)
+
+	if !cmp.Equal(actualReferences, expectedReferences) {
+		diff := ""
+		for index, actual := range actualReferences {
+			expected := expectedReferences[index]
+			if actual == expected {
+				continue
+			}
+
+			contents, ok := filesToContents[actual.URI]
+			if !ok {
+				// ok, read the file
+				fileName := strings.Replace(actual.URI, "file://", "", 1)
+				byteContents, err := os.ReadFile(path.Join(projectRoot, fileName))
+				if err != nil {
+					return err
+				}
+
+				contents = string(byteContents)
+				filesToContents[actual.URI] = contents
+			}
+
+			thisDiff, err := DrawLocations(contents, expected, actual)
+			if err != nil {
+				return errors.Wrap(err, "Unable to draw the pretty diff")
+			}
+
+			diff += cmp.Diff(actual, expected)
+			diff += "\n" + thisDiff
+		}
+
 		fileResult.Failed = append(fileResult.Failed, failedTest{
 			Name: testCase.Name,
 			Diff: diff,
@@ -374,7 +433,7 @@ func runOneReferencesRequest(bundle *semantic.GroupedBundleDataMaps, testCase Re
 	return nil
 }
 
-func runOneDefinitionRequest(bundle *semantic.GroupedBundleDataMaps, testCase DefinitionTest, fileResult *testFileResult) error {
+func runOneDefinitionRequest(projectRoot string, bundle *semantic.GroupedBundleDataMaps, testCase DefinitionTest, fileResult *testFileResult) error {
 	request := testCase.Request
 
 	path := request.TextDocument

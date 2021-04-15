@@ -1,7 +1,10 @@
 package main
 
 type Position struct {
-	Line      int `json:"line"`
+	// zero-based line index
+	Line int `json:"line"`
+
+	// one-based character index
 	Character int `json:"character"`
 }
 
