@@ -16,19 +16,33 @@ func sameLine(a, b Location) bool {
 func header(l Location) string {
 	return fmt.Sprintf("%s:%d", l.URI, l.Range.Start.Line)
 }
+
 func lineCarets(r Range, name string) string {
 	return fmt.Sprintf("%s%s %s",
 		strings.Repeat(" ", r.Start.Character),
 		strings.Repeat("^", r.End.Character-r.Start.Character),
 		name,
 	)
-
 }
 
-// src/header.c:1
-// void exported_funct() {
-//       ^^^^^^^^^^^^^^^ expected
-//      ^^^^^^^^^^^^^^^^ actual
+func fmtLine(line int, prefixWidth int, text string) string {
+	var prefix string
+	if line == -1 {
+		prefix = strings.Repeat(" ", prefixWidth)
+	} else {
+		prefix = fmt.Sprintf("%d", line)
+	}
+
+	return fmt.Sprintf("|%s| %s", prefix, text)
+}
+
+// src/header.c:5
+// |4| /// Some documentation
+// |5| void exported_funct() {
+// | |      ^^^^^^^^^^^^^^^ expected
+// | |     ^^^^^^^^^^^^^^^^ actual
+// |6|   return;
+//
 //
 // Only operates on locations with the same URI.
 //    It doesn't make sense to diff anything here when we don't have that.
@@ -49,16 +63,30 @@ func DrawLocations(contents string, expected, actual Location) (string, error) {
 			return "", errors.New("Line does not exist in contents")
 		}
 
-		spaces := strings.Repeat(" ", len(fmt.Sprintf("%d", line)))
-		text := fmt.Sprintf("%s\n|%d| %s\n|%s| %s\n|%s| %s",
-			header(expected),
-			line,
-			splitLines[line],
-			spaces,
-			lineCarets(expected.Range, "expected"),
-			spaces,
-			lineCarets(actual.Range, "actual"),
+		text := header(expected) + "\n"
+
+		prefixWidth := len(fmt.Sprintf("%d", line+1))
+		context := 2
+
+		for offset := context; offset > 0; offset-- {
+			newLine := line - offset
+			if newLine >= 0 {
+				text += fmtLine(newLine, prefixWidth, splitLines[newLine]) + "\n"
+			}
+		}
+
+		text += fmt.Sprintf("%s\n%s\n%s\n",
+			fmtLine(line, prefixWidth, splitLines[line]),
+			fmtLine(-1, prefixWidth, lineCarets(expected.Range, "expected")),
+			fmtLine(-1, prefixWidth, lineCarets(actual.Range, "actual")),
 		)
+
+		for offset := 0; offset < context; offset++ {
+			newLine := line + offset + 1
+			if newLine < len(splitLines) {
+				text += fmtLine(newLine, prefixWidth, splitLines[newLine]) + "\n"
+			}
+		}
 
 		return text, nil
 	}
