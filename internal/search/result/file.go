@@ -10,18 +10,18 @@ import (
 )
 
 type FileMatch struct {
-	Path        string
-	LineMatches []*LineMatch
-	LimitHit    bool
-
-	Symbols  []*SymbolMatch  `json:"-"`
-	Repo     *types.RepoName `json:"-"`
-	CommitID api.CommitID    `json:"-"`
-
 	// InputRev is the Git revspec that the user originally requested to search. It is used to
 	// preserve the original revision specifier from the user instead of navigating them to the
 	// absolute commit ID when they select a result.
-	InputRev *string `json:"-"`
+	InputRev *string         `json:"-"`
+	CommitID api.CommitID    `json:"-"`
+	Repo     *types.RepoName `json:"-"`
+	Path     string
+
+	Symbols     []*SymbolMatch `json:"-"`
+	LineMatches []*LineMatch
+
+	LimitHit bool
 }
 
 func (fm *FileMatch) searchResultMarker() {}
