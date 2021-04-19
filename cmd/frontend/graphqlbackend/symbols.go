@@ -277,7 +277,7 @@ func (r symbolResolver) Kind() string /* enum SymbolKind */ {
 func (r symbolResolver) Language() string { return r.Symbol.Language }
 
 func (r symbolResolver) Location() *locationResolver {
-	uri := r.BaseURI().WithFilePath(r.Symbol.Path)
+	uri := r.URI()
 	stat := CreateFileInfo(uri.Fragment, false)
 	sr := symbolRange(r.Symbol)
 	return &locationResolver{
