@@ -14,7 +14,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/cmd/frontend/graphqlbackend/graphqlutil"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/database/dbutil"
-	"github.com/sourcegraph/sourcegraph/internal/gituri"
 	"github.com/sourcegraph/sourcegraph/internal/search"
 	"github.com/sourcegraph/sourcegraph/internal/search/result"
 	zoektutil "github.com/sourcegraph/sourcegraph/internal/search/zoekt"
@@ -173,7 +172,6 @@ func searchZoektSymbols(ctx context.Context, commit *GitCommitResolver, branch s
 		return nil, err
 	}
 
-	baseURI, err := gituri.Parse("git://" + commit.repoResolver.Name() + "?" + string(commit.oid))
 	for _, file := range resp.Files {
 		for _, l := range file.LineMatches {
 			if l.FileName {
@@ -201,7 +199,6 @@ func searchZoektSymbols(ctx context.Context, commit *GitCommitResolver, branch s
 						InputRev: commit.inputRev,
 						CommitID: api.CommitID(commit.oid),
 					},
-					BaseURI: baseURI,
 				})
 			}
 		}
@@ -237,19 +234,12 @@ func computeSymbols(ctx context.Context, commit *GitCommitResolver, query *strin
 	if query != nil {
 		searchArgs.Query = *query
 	}
-	baseURI, err := gituri.Parse("git://" + commit.repoResolver.Name() + "?" + string(commit.oid))
-	if err != nil {
-		return nil, err
-	}
+
 	symbols, err := backend.Symbols.ListTags(ctx, searchArgs)
-	if baseURI == nil {
-		return
-	}
 	matches := make([]*result.SymbolMatch, 0, len(symbols))
 	for _, symbol := range symbols {
 		matches = append(matches, &result.SymbolMatch{
-			Symbol:  symbol,
-			BaseURI: baseURI,
+			Symbol: symbol,
 			File: result.File{
 				Path:     symbol.Path,
 				Repo:     &types.RepoName{Name: commit.repoResolver.RepoMatch.Name, ID: commit.repoResolver.RepoMatch.ID},

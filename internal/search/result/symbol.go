@@ -27,9 +27,8 @@ type Symbols = []Symbol
 
 // SymbolMatch is a symbol search result decorated with extra metadata in the frontend.
 type SymbolMatch struct {
-	Symbol  Symbol
-	File    File
-	BaseURI *gituri.URI
+	Symbol Symbol
+	File   File
 }
 
 func (s *SymbolMatch) CalculatedBaseURI() *gituri.URI {

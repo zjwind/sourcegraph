@@ -3,7 +3,6 @@ package graphqlbackend
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/actor"
 	"github.com/sourcegraph/sourcegraph/internal/api"
 	"github.com/sourcegraph/sourcegraph/internal/database/dbutil"
-	"github.com/sourcegraph/sourcegraph/internal/gituri"
 	"github.com/sourcegraph/sourcegraph/internal/search"
 	"github.com/sourcegraph/sourcegraph/internal/search/backend"
 	"github.com/sourcegraph/sourcegraph/internal/search/filter"
@@ -527,11 +525,6 @@ func escape(s string) string {
 }
 
 func zoektFileMatchToSymbolResults(repo *RepositoryResolver, inputRev string, file *zoekt.FileMatch) []*result.SymbolMatch {
-	// Symbol search returns a resolver so we need to pass in some
-	// extra stuff. This is a sign that we can probably restructure
-	// resolvers to avoid this.
-	baseURI := &gituri.URI{URL: url.URL{Scheme: "git", Host: repo.Name(), RawQuery: url.QueryEscape(inputRev)}}
-
 	symbols := make([]*result.SymbolMatch, 0, len(file.LineMatches))
 	for _, l := range file.LineMatches {
 		if l.FileName {
@@ -558,7 +551,6 @@ func zoektFileMatchToSymbolResults(repo *RepositoryResolver, inputRev string, fi
 					Pattern:  fmt.Sprintf("/^%s$/", escape(string(l.Line))),
 					Language: file.Language,
 				},
-				BaseURI: baseURI,
 			})
 		}
 	}
