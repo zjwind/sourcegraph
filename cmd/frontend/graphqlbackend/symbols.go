@@ -19,6 +19,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/search/result"
 	zoektutil "github.com/sourcegraph/sourcegraph/internal/search/zoekt"
 	"github.com/sourcegraph/sourcegraph/internal/trace/ot"
+	"github.com/sourcegraph/sourcegraph/internal/types"
 )
 
 type symbolsArgs struct {
@@ -194,6 +195,12 @@ func searchZoektSymbols(ctx context.Context, commit *GitCommitResolver, branch s
 						Line:       l.LineNumber,
 						Language:   file.Language,
 					},
+					File: result.File{
+						Path:     file.FileName,
+						Repo:     &types.RepoName{Name: commit.repoResolver.RepoMatch.Name, ID: commit.repoResolver.RepoMatch.ID},
+						InputRev: commit.inputRev,
+						CommitID: api.CommitID(commit.oid),
+					},
 					BaseURI: baseURI,
 				})
 			}
@@ -243,6 +250,12 @@ func computeSymbols(ctx context.Context, commit *GitCommitResolver, query *strin
 		matches = append(matches, &result.SymbolMatch{
 			Symbol:  symbol,
 			BaseURI: baseURI,
+			File: result.File{
+				Path:     symbol.Path,
+				Repo:     &types.RepoName{Name: commit.repoResolver.RepoMatch.Name, ID: commit.repoResolver.RepoMatch.ID},
+				InputRev: commit.inputRev,
+				CommitID: api.CommitID(commit.oid),
+			},
 		})
 	}
 	return matches, err
