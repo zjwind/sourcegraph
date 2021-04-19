@@ -365,13 +365,15 @@ func zoektSearch(ctx context.Context, db dbutil.DB, args *search.TextParameters,
 					fm := &FileMatchResolver{
 						db: db,
 						FileMatch: result.FileMatch{
-							Path:        file.FileName,
+							File: result.File{
+								Path:     file.FileName,
+								Repo:     repo,
+								CommitID: api.CommitID(file.Version),
+								InputRev: &inputRev,
+							},
 							LineMatches: lines,
 							LimitHit:    fileLimitHit,
 							Symbols:     symbols,
-							Repo:        repo,
-							CommitID:    api.CommitID(file.Version),
-							InputRev:    &inputRev,
 						},
 						RepoResolver: repoResolver,
 					}

@@ -43,17 +43,17 @@ func TestSearchFilesInRepos(t *testing.T) {
 		repoName := repo.Name
 		switch repoName {
 		case "foo/one":
-			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{
+			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{File: result.File{
 				Repo:     repo,
 				InputRev: &rev,
 				Path:     "main.go",
-			})}, false, nil
+			}})}, false, nil
 		case "foo/two":
-			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{
+			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{File: result.File{
 				Repo:     repo,
 				InputRev: &rev,
 				Path:     "main.go",
-			})}, false, nil
+			}})}, false, nil
 		case "foo/empty":
 			return nil, false, nil
 		case "foo/cloning":
@@ -136,23 +136,23 @@ func TestSearchFilesInReposStream(t *testing.T) {
 		repoName := repo.Name
 		switch repoName {
 		case "foo/one":
-			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{
+			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{File: result.File{
 				Repo:     repo,
 				InputRev: &rev,
 				Path:     "main.go",
-			})}, false, nil
+			}})}, false, nil
 		case "foo/two":
-			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{
+			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{File: result.File{
 				Repo:     repo,
 				InputRev: &rev,
 				Path:     "main.go",
-			})}, false, nil
+			}})}, false, nil
 		case "foo/three":
-			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{
+			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{File: result.File{
 				Repo:     repo,
 				InputRev: &rev,
 				Path:     "main.go",
-			})}, false, nil
+			}})}, false, nil
 		default:
 			return nil, false, errors.New("Unexpected repo")
 		}
@@ -216,11 +216,11 @@ func TestSearchFilesInRepos_multipleRevsPerRepo(t *testing.T) {
 		repoName := repo.Name
 		switch repoName {
 		case "foo":
-			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{
+			return []*FileMatchResolver{mkFileMatchResolver(db, result.FileMatch{File: result.File{
 				Repo:     repo,
 				InputRev: &rev,
 				Path:     "main.go",
-			})}, false, nil
+			}})}, false, nil
 		default:
 			panic("unexpected repo")
 		}

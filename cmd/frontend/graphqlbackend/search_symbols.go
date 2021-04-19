@@ -201,11 +201,13 @@ func searchSymbolsInRepo(ctx context.Context, repoRevs *search.RepositoryRevisio
 	fileMatches := make([]result.FileMatch, 0, len(symbolMatchesByPath))
 	for path, symbolMatches := range symbolMatchesByPath {
 		fileMatches = append(fileMatches, result.FileMatch{
-			Path:     path,
-			Symbols:  symbolMatches,
-			Repo:     repoRevs.Repo,
-			CommitID: commitID,
-			InputRev: &inputRev,
+			File: result.File{
+				Path:     path,
+				Repo:     repoRevs.Repo,
+				CommitID: commitID,
+				InputRev: &inputRev,
+			},
+			Symbols: symbolMatches,
 		})
 	}
 

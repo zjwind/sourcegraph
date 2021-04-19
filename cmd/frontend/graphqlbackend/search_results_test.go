@@ -819,8 +819,10 @@ func TestCompareSearchResults(t *testing.T) {
 
 	makeResult := func(repo, file string) *FileMatchResolver {
 		return mkFileMatchResolver(db, result.FileMatch{
-			Repo: &types.RepoName{Name: api.RepoName(repo)},
-			Path: file,
+			File: result.File{
+				Repo: &types.RepoName{Name: api.RepoName(repo)},
+				Path: file,
+			},
 		})
 	}
 
@@ -1148,7 +1150,9 @@ func fileResult(db dbutil.DB, uri string, lineMatches []*result.LineMatch, symbo
 	return &FileMatchResolver{
 		db: db,
 		FileMatch: result.FileMatch{
-			Repo:        &types.RepoName{Name: api.RepoName(uri)},
+			File: result.File{
+				Repo: &types.RepoName{Name: api.RepoName(uri)},
+			},
 			LineMatches: lineMatches,
 			Symbols:     symbolMatches,
 		},

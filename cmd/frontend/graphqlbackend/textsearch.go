@@ -223,12 +223,14 @@ func searchFilesInRepo(ctx context.Context, db dbutil.DB, searcherURLs *endpoint
 		resolvers = append(resolvers, &FileMatchResolver{
 			db: db,
 			FileMatch: result.FileMatch{
-				Path:        fm.Path,
+				File: result.File{
+					Path:     fm.Path,
+					Repo:     repo,
+					CommitID: commit,
+					InputRev: &rev,
+				},
 				LineMatches: lineMatches,
 				LimitHit:    fm.LimitHit,
-				Repo:        repo,
-				CommitID:    commit,
-				InputRev:    &rev,
 			},
 			RepoResolver: repoResolver,
 		})
