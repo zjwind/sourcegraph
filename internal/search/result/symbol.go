@@ -1,6 +1,7 @@
 package result
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/internal/gituri"
@@ -29,6 +30,20 @@ type SymbolMatch struct {
 	Symbol  Symbol
 	File    File
 	BaseURI *gituri.URI
+}
+
+func (s *SymbolMatch) CalculatedBaseURI() *gituri.URI {
+	u := &gituri.URI{url.URL{
+		Scheme:   "git",
+		Host:     string(s.File.Repo.Name),
+		RawQuery: string(s.File.CommitID),
+	}}
+
+	if s.File.InputRev != nil {
+		u.RawQuery = url.QueryEscape(*s.File.InputRev)
+	}
+
+	return u
 }
 
 func (s *SymbolMatch) URI() *gituri.URI {
