@@ -1021,7 +1021,7 @@ func TestZoektFileMatchToSymbolResults(t *testing.T) {
 	results := zoektFileMatchToSymbolResults(repo, "master", file)
 	var symbols []result.Symbol
 	for _, res := range results {
-		if got, want := res.BaseURI.URL.String(), "git://foo?master"; got != want {
+		if got, want := res.CalculatedBaseURI().URL.String(), "git://foo?master"; got != want {
 			t.Fatalf("baseURI: got %q want %q", got, want)
 		}
 

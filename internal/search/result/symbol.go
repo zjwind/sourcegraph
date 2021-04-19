@@ -47,7 +47,7 @@ func (s *SymbolMatch) CalculatedBaseURI() *gituri.URI {
 }
 
 func (s *SymbolMatch) URI() *gituri.URI {
-	return s.BaseURI.WithFilePath(s.Symbol.Path)
+	return s.CalculatedBaseURI().WithFilePath(s.Symbol.Path)
 }
 
 // toSelectKind maps an internal symbol kind (cf. ctagsKind) to a corresponding
