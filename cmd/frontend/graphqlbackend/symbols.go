@@ -57,9 +57,29 @@ func symbolResultsToResolvers(db dbutil.DB, commit *GitCommitResolver, symbols [
 	return symbolResolvers
 }
 
+func toSymbolResolver(db dbutil.DB, commit *GitCommitResolver, sr *result.SymbolMatch) symbolResolver {
+	return symbolResolver{
+		db:          db,
+		commit:      commit,
+		SymbolMatch: sr,
+	}
+}
+
 type symbolConnectionResolver struct {
 	first   *int32
 	symbols []symbolResolver
+}
+
+func (r *symbolConnectionResolver) Nodes(ctx context.Context) ([]symbolResolver, error) {
+	symbols := r.symbols
+	if len(r.symbols) > limitOrDefault(r.first) {
+		symbols = symbols[:limitOrDefault(r.first)]
+	}
+	return symbols, nil
+}
+
+func (r *symbolConnectionResolver) PageInfo(ctx context.Context) (*graphqlutil.PageInfo, error) {
+	return graphqlutil.HasNextPage(len(r.symbols) > limitOrDefault(r.first)), nil
 }
 
 func limitOrDefault(first *int32) int {
@@ -226,26 +246,6 @@ func computeSymbols(ctx context.Context, commit *GitCommitResolver, query *strin
 		})
 	}
 	return matches, err
-}
-
-func toSymbolResolver(db dbutil.DB, commit *GitCommitResolver, sr *result.SymbolMatch) symbolResolver {
-	return symbolResolver{
-		db:          db,
-		commit:      commit,
-		SymbolMatch: sr,
-	}
-}
-
-func (r *symbolConnectionResolver) Nodes(ctx context.Context) ([]symbolResolver, error) {
-	symbols := r.symbols
-	if len(r.symbols) > limitOrDefault(r.first) {
-		symbols = symbols[:limitOrDefault(r.first)]
-	}
-	return symbols, nil
-}
-
-func (r *symbolConnectionResolver) PageInfo(ctx context.Context) (*graphqlutil.PageInfo, error) {
-	return graphqlutil.HasNextPage(len(r.symbols) > limitOrDefault(r.first)), nil
 }
 
 type symbolResolver struct {
