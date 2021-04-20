@@ -88,6 +88,7 @@ func main() {
 	indexer := strings.Split(raw_indexer, " ")
 	if err := testDirectory(context.Background(), indexer, directory); err != nil {
 		logFatal("Failed with", "err", err)
+		return
 	}
 	log15.Info("Tests passed:", "directory", directory, "indexer", raw_indexer)
 }
@@ -99,6 +100,7 @@ func testDirectory(ctx context.Context, indexer []string, directory string) erro
 	}
 
 	type channelResult struct {
+		name   string
 		result projectResult
 		err    error
 	}
@@ -113,8 +115,8 @@ func testDirectory(ctx context.Context, indexer []string, directory string) erro
 			defer wg.Done()
 
 			projResult, err := testProject(ctx, indexer, path.Join(directory, name), name)
-
 			resultChan <- channelResult{
+				name:   name,
 				result: projResult,
 				err:    err,
 			}
@@ -125,16 +127,20 @@ func testDirectory(ctx context.Context, indexer []string, directory string) erro
 	wg.Wait()
 	close(resultChan)
 
-	allPassed := true
-	for chanResult := range resultChan {
-		if chanResult.err != nil {
-			log15.Warn("Failed to run test. Got err:", "error", chanResult.err)
+	successful := true
+	for res := range resultChan {
+		if res.err != nil {
+			successful = false
+
+			log15.Warn("Failed to run test.", "name", res.name)
+			fmt.Println(res.err)
 			continue
 		}
 
-		for _, fileResult := range chanResult.result.testResult.FileResults {
+		for _, fileResult := range res.result.testResult.FileResults {
 			if len(fileResult.Failed) > 0 {
-				allPassed = false
+				successful = false
+
 				for _, failed := range fileResult.Failed {
 					fmt.Printf("Failed test: File: %s, Name: %s\nDiff: %s\n", fileResult.Name, failed.Name, failed.Diff)
 				}
@@ -142,8 +148,8 @@ func testDirectory(ctx context.Context, indexer []string, directory string) erro
 		}
 	}
 
-	if !allPassed {
-		return errors.New("Failed some tests. Try again later :)")
+	if !successful {
+		return errors.New(fmt.Sprintf("'%s' Failed.", directory))
 	}
 
 	return nil
@@ -167,8 +173,7 @@ func testProject(ctx context.Context, indexer []string, project, name string) (p
 	log15.Debug("... \t Resource Usage:", "usage", result.usage)
 
 	if err := validateDump(project); err != nil {
-		fmt.Println("ERROR:", err)
-		// return projectResult{}, err
+		return projectResult{}, err
 	}
 	log15.Debug("... Validated dump.lsif")
 
@@ -176,6 +181,7 @@ func testProject(ctx context.Context, indexer []string, project, name string) (p
 	if err != nil {
 		return projectResult{name: name}, err
 	}
+	log15.Debug("... Read bundle")
 
 	testResult, err := validateTestCases(project, bundle)
 	if err != nil {
@@ -234,9 +240,9 @@ func validateDump(directory string) error {
 	}
 
 	if len(ctx.Errors) > 0 {
-		msg := fmt.Sprintf("Detected %d errors", len(ctx.Errors))
+		msg := fmt.Sprintf("Detected %d errors\n", len(ctx.Errors))
 		for i, err := range ctx.Errors {
-			msg += fmt.Sprintf("%d. %s", i, err)
+			msg += fmt.Sprintf("%d. %s\n", i, err)
 		}
 		return errors.New(msg)
 	}
@@ -301,36 +307,8 @@ func runOneTestFile(projectRoot, file string, bundle *semantic.GroupedBundleData
 	return fileResult, nil
 }
 
-func sortPosition(left, right Position) int {
-	if left.Line > right.Line {
-		return -1
-	} else if left.Line < right.Line {
-		return 1
-	}
-
-	if left.Character > right.Character {
-		return -1
-	} else if left.Character < right.Character {
-		return 1
-	}
-
-	return 0
-}
-
-func sortRange(left, right Range) int {
-	start := sortPosition(left.Start, right.Start)
-	if start != 0 {
-		return start
-	}
-
-	end := sortPosition(left.End, right.End)
-	if end != 0 {
-		return end
-	}
-
-	return 0
-}
-
+// Stable sort for references so that we can compare much more easily.
+// Without this, it's a bit annoying to get the diffs.
 func sortReferences(references []Location) func(i, j int) bool {
 	return func(i, j int) bool {
 		left := references[i]
@@ -349,6 +327,35 @@ func sortReferences(references []Location) func(i, j int) bool {
 
 		return i < j
 	}
+}
+
+func sortRange(left, right Range) int {
+	start := sortPosition(left.Start, right.Start)
+	if start != 0 {
+		return start
+	}
+
+	end := sortPosition(left.End, right.End)
+	if end != 0 {
+		return end
+	}
+
+	return 0
+}
+func sortPosition(left, right Position) int {
+	if left.Line > right.Line {
+		return -1
+	} else if left.Line < right.Line {
+		return 1
+	}
+
+	if left.Character > right.Character {
+		return -1
+	} else if left.Character < right.Character {
+		return 1
+	}
+
+	return 0
 }
 
 func runOneReferencesRequest(projectRoot string, bundle *semantic.GroupedBundleDataMaps, testCase ReferencesTest, fileResult *testFileResult) error {
@@ -446,7 +453,7 @@ func runOneDefinitionRequest(projectRoot string, bundle *semantic.GroupedBundleD
 	}
 
 	// TODO: We probably can have more than one result and have that make sense...
-	//		should allow testing that
+	//       should allow testing that at some point
 	if len(results) > 1 {
 		return errors.New("Had too many results")
 	} else if len(results) == 0 {

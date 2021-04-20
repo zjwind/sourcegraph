@@ -39,7 +39,7 @@ Inside of each project, they should have:
         }
       },
       "response": {
-        "textDocument": "src/uses_header.c",
+        "uri": "file://src/uses_header.c",
         "range": {
           "start": { "line": 10, "character": 5 },
           "end": { "line": 10, "character": 22 }
@@ -56,6 +56,12 @@ Inside of each project, they should have:
 - `reseponse`: expected `textDocument/response` response.
 
 See: [textDocument definition](https://microsoft.github.io/language-server-protocol/specification#textDocument_definition)
+
+### Test: `textDocument/references`
+
+Same format as above for `definition`, except using the format as described by:
+
+[textDocument references](https://microsoft.github.io/language-server-protocol/specification.html#textDocument_references)
 
 ## Project Testing
 
