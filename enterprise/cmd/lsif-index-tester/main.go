@@ -24,10 +24,11 @@ import (
 )
 
 type projectResult struct {
-	name       string
-	usage      usageStats
-	output     string
-	testResult testSuiteResult
+	name         string
+	usage        usageStats
+	output       string
+	bundleResult bundleResult
+	suiteResult  testSuiteResult
 }
 
 type usageStats struct {
@@ -42,6 +43,11 @@ type passedTest struct {
 type failedTest struct {
 	Name string
 	Diff string
+}
+
+type bundleResult struct {
+	Valid  bool
+	Errors []string
 }
 
 type testFileResult struct {
@@ -129,6 +135,7 @@ func testDirectory(ctx context.Context, indexer []string, directory string) erro
 
 	successful := true
 	for res := range resultChan {
+		fmt.Println("====================")
 		if res.err != nil {
 			successful = false
 
@@ -137,7 +144,13 @@ func testDirectory(ctx context.Context, indexer []string, directory string) erro
 			continue
 		}
 
-		for _, fileResult := range res.result.testResult.FileResults {
+		if !res.result.bundleResult.Valid {
+			successful = false
+
+			fmt.Printf("%s bundle was found to be invalid:\n%s\n", res.name, res.result.bundleResult.Errors)
+		}
+
+		for _, fileResult := range res.result.suiteResult.FileResults {
 			if len(fileResult.Failed) > 0 {
 				successful = false
 
@@ -172,7 +185,8 @@ func testProject(ctx context.Context, indexer []string, project, name string) (p
 
 	log15.Debug("... \t Resource Usage:", "usage", result.usage)
 
-	if err := validateDump(project); err != nil {
+	bundleResult, err := validateDump(project)
+	if err != nil {
 		return projectResult{}, err
 	}
 	log15.Debug("... Validated dump.lsif")
@@ -189,10 +203,11 @@ func testProject(ctx context.Context, indexer []string, project, name string) (p
 	}
 
 	return projectResult{
-		name:       name,
-		usage:      result.usage,
-		output:     string(output),
-		testResult: testResult,
+		name:         name,
+		usage:        result.usage,
+		output:       string(output),
+		bundleResult: bundleResult,
+		suiteResult:  testResult,
 	}, nil
 }
 
@@ -226,28 +241,33 @@ func runIndexer(ctx context.Context, indexer []string, directory, name string) (
 	}, err
 }
 
-func validateDump(directory string) error {
+// Returns the bundle result. Only errors when the bundle doesn't exist or is
+// unreadable. Otherwise, we send errors back in bundleResult so that we can
+// run the tests even with invalid bundles.
+func validateDump(directory string) (bundleResult, error) {
 	dumpFile, err := os.Open(filepath.Join(directory, "dump.lsif"))
 	if err != nil {
-		return err
+		return bundleResult{}, err
 	}
 
 	ctx := validation.NewValidationContext()
 	validator := &validation.Validator{Context: ctx}
 
 	if err := validator.Validate(dumpFile); err != nil {
-		return err
+		return bundleResult{}, err
 	}
 
 	if len(ctx.Errors) > 0 {
-		msg := fmt.Sprintf("Detected %d errors\n", len(ctx.Errors))
+		errors := make([]string, len(ctx.Errors)+1)
+		errors[0] = fmt.Sprintf("Detected %d errors", len(ctx.Errors))
 		for i, err := range ctx.Errors {
-			msg += fmt.Sprintf("%d. %s\n", i, err)
+			errors[i+1] = fmt.Sprintf("%d. %s", i, err)
 		}
-		return errors.New(msg)
+
+		return bundleResult{Valid: false, Errors: errors}, nil
 	}
 
-	return nil
+	return bundleResult{Valid: true}, nil
 }
 
 func validateTestCases(projectRoot string, bundle *semantic.GroupedBundleDataMaps) (testSuiteResult, error) {
