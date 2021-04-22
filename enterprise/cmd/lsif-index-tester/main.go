@@ -309,8 +309,8 @@ func runOneTestFile(projectRoot, file string, bundle *semantic.GroupedBundleData
 
 // Stable sort for references so that we can compare much more easily.
 // Without this, it's a bit annoying to get the diffs.
-func sortReferences(references []Location) func(i, j int) bool {
-	return func(i, j int) bool {
+func sortReferences(references []Location) {
+	sort.SliceStable(references, func(i, j int) bool {
 		left := references[i]
 		right := references[j]
 
@@ -326,7 +326,7 @@ func sortReferences(references []Location) func(i, j int) bool {
 		}
 
 		return i < j
-	}
+	})
 }
 
 func sortRange(left, right Range) int {
@@ -376,11 +376,35 @@ func runOneReferencesRequest(projectRoot string, bundle *semantic.GroupedBundleD
 		return errors.New("'context.IncludeDeclaration = false' configuration is not currently supported")
 	}
 
-	// TODO: I'm not sure when we'd send more than one result, rather than multiple references for this.
+	// At this point we can have multiple references, but can handle only one _set_ of references.
 	if len(results) > 1 {
 		return errors.New("Had too many results")
-	} else if len(results) == 0 {
-		return errors.New("Found no results")
+	}
+
+	// Short circuit for expected empty but didn't get empty
+	if len(testCase.Response) == 0 {
+		if len(results[0].References) != 0 {
+			fileResult.Failed = append(fileResult.Failed, failedTest{
+				Name: testCase.Name,
+				Diff: cmp.Diff(testCase.Response, results),
+			})
+		} else {
+			fileResult.Passed = append(fileResult.Passed, passedTest{
+				Name: testCase.Name,
+			})
+		}
+
+		return nil
+	}
+
+	// Expected results but didn't get any
+	if len(results) == 0 {
+		fileResult.Failed = append(fileResult.Failed, failedTest{
+			Name: testCase.Name,
+			Diff: "Found no results\n" + cmp.Diff(testCase.Response, results),
+		})
+
+		return nil
 	}
 
 	semanticReferences := results[0].References
@@ -392,8 +416,8 @@ func runOneReferencesRequest(projectRoot string, bundle *semantic.GroupedBundleD
 
 	expectedReferences := []Location(testCase.Response)
 
-	sort.SliceStable(actualReferences, sortReferences(actualReferences))
-	sort.SliceStable(expectedReferences, sortReferences(expectedReferences))
+	sortReferences(actualReferences)
+	sortReferences(expectedReferences)
 
 	filesToContents := make(map[string]string)
 
