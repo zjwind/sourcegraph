@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/go-langserver/pkg/lsp"
 
 	"github.com/sourcegraph/sourcegraph/internal/database/dbtesting"
 	"github.com/sourcegraph/sourcegraph/internal/database/dbutil"
@@ -181,23 +180,10 @@ func TestLimitingSymbolResults(t *testing.T) {
 	})
 }
 
-func TestSymbolRange(t *testing.T) {
-	t.Run("unescaped pattern", func(t *testing.T) {
-		want := lsp.Range{
-			Start: lsp.Position{Line: 0, Character: 37},
-			End:   lsp.Position{Line: 0, Character: 40},
-		}
-		got := symbolRange(result.Symbol{Line: 1, Name: "baz", Pattern: `/^bar() { var regex = \/.*\\\/\/; function baz() { }  } $/`})
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Fatal(diff)
-		}
-	})
-}
-
 func mkSymbolFileMatchResolvers(db dbutil.DB, symbols ...[]*result.SymbolMatch) []*FileMatchResolver {
 	var resolvers []*FileMatchResolver
 	for _, s := range symbols {
-		resolvers = append(resolvers, mkFileMatchResolver(db, result.FileMatch{
+		resolvers = append(resolvers, mkResolverFromFileMatch(db, result.FileMatch{
 			Symbols: s,
 		}))
 	}

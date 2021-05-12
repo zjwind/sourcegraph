@@ -35,8 +35,6 @@ import (
 )
 
 func TestIndexedSearch(t *testing.T) {
-	db := new(dbtesting.MockDB)
-
 	zeroTimeoutCtx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 	type args struct {
@@ -66,7 +64,7 @@ func TestIndexedSearch(t *testing.T) {
 		name               string
 		args               args
 		wantMatchCount     int
-		wantMatchURLs      []string
+		wantMatchKeys      []result.Key
 		wantMatchInputRevs []string
 		wantUnindexed      []*search.RepositoryRevisions
 		wantCommon         streaming.Stats
@@ -121,6 +119,7 @@ func TestIndexedSearch(t *testing.T) {
 					{
 						Repository: "foo/bar",
 						Branches:   []string{"HEAD"},
+						Version:    "1",
 						FileName:   "baz.go",
 						LineMatches: []zoekt.LineMatch{
 							{
@@ -141,6 +140,7 @@ func TestIndexedSearch(t *testing.T) {
 					{
 						Repository: "foo/foobar",
 						Branches:   []string{"HEAD"},
+						Version:    "2",
 						FileName:   "baz.go",
 						LineMatches: []zoekt.LineMatch{
 							{
@@ -156,9 +156,9 @@ func TestIndexedSearch(t *testing.T) {
 				since: func(time.Time) time.Duration { return 0 },
 			},
 			wantMatchCount: 5,
-			wantMatchURLs: []string{
-				"git://foo/bar#baz.go",
-				"git://foo/foobar#baz.go",
+			wantMatchKeys: []result.Key{
+				{Repo: "foo/bar", Commit: "1", Path: "baz.go"},
+				{Repo: "foo/foobar", Commit: "2", Path: "baz.go"},
 			},
 			wantMatchInputRevs: []string{
 				"",
@@ -179,20 +179,22 @@ func TestIndexedSearch(t *testing.T) {
 						// baz.go is the same in HEAD and dev
 						Branches: []string{"HEAD", "dev"},
 						FileName: "baz.go",
+						Version:  "1",
 					},
 					{
 						Repository: "foo/bar",
 						Branches:   []string{"dev"},
 						FileName:   "bam.go",
+						Version:    "2",
 					},
 				},
 				since: func(time.Time) time.Duration { return 0 },
 			},
 			wantMatchCount: 3,
-			wantMatchURLs: []string{
-				"git://foo/bar?HEAD#baz.go",
-				"git://foo/bar?dev#baz.go",
-				"git://foo/bar?dev#bam.go",
+			wantMatchKeys: []result.Key{
+				{Repo: "foo/bar", Commit: "1", Path: "baz.go"},
+				{Repo: "foo/bar", Commit: "1", Path: "baz.go"},
+				{Repo: "foo/bar", Commit: "2", Path: "bam.go"},
 			},
 			wantMatchInputRevs: []string{
 				"HEAD",
@@ -216,12 +218,13 @@ func TestIndexedSearch(t *testing.T) {
 						Repository: "foo/bar",
 						Branches:   []string{"HEAD"},
 						FileName:   "baz.go",
+						Version:    "1",
 					},
 				},
 			},
 			wantUnindexed: makeRepositoryRevisions("foo/bar@unindexed"),
-			wantMatchURLs: []string{
-				"git://foo/bar?HEAD#baz.go",
+			wantMatchKeys: []result.Key{
+				{Repo: "foo/bar", Commit: "1", Path: "baz.go"},
 			},
 			wantMatchCount:     1,
 			wantMatchInputRevs: []string{"HEAD"},
@@ -238,7 +241,7 @@ func TestIndexedSearch(t *testing.T) {
 				results:         []zoekt.FileMatch{},
 			},
 			wantUnindexed:      makeRepositoryRevisions("foo/bar@HEAD"),
-			wantMatchURLs:      nil,
+			wantMatchKeys:      nil,
 			wantMatchInputRevs: nil,
 		},
 		{
@@ -252,7 +255,7 @@ func TestIndexedSearch(t *testing.T) {
 				results:         []zoekt.FileMatch{},
 			},
 			wantUnindexed:      makeRepositoryRevisions("foo/bar@HEAD"),
-			wantMatchURLs:      nil,
+			wantMatchKeys:      nil,
 			wantMatchInputRevs: nil,
 		},
 	}
@@ -277,7 +280,7 @@ func TestIndexedSearch(t *testing.T) {
 				},
 			}
 
-			indexed, err := newIndexedSearchRequest(context.Background(), db, args, textRequest, StreamFunc(func(SearchEvent) {}))
+			indexed, err := newIndexedSearchRequest(context.Background(), args, textRequest, MatchStreamFunc(func(SearchEvent) {}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -291,14 +294,15 @@ func TestIndexedSearch(t *testing.T) {
 			// This is a quick fix which will break once we enable the zoekt client for true streaming.
 			// Once we return more than one event we have to account for the proper order of results
 			// in the tests.
-			gotResults, gotCommon, err := collectStream(func(stream Sender) error {
+			gotMatches, gotCommon, err := collectStream(func(stream Sender) error {
 				return indexed.Search(tt.args.ctx, stream)
 			})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("zoektSearchHEAD() error = %v, wantErr = %v", err, tt.wantErr)
 				return
 			}
-			gotFm, err := searchResultsToFileMatchResults(gotResults)
+
+			gotFm, err := matchesToFileMatches(gotMatches)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -308,16 +312,16 @@ func TestIndexedSearch(t *testing.T) {
 			}
 
 			var gotMatchCount int
-			var gotMatchURLs []string
+			var gotMatchKeys []result.Key
 			var gotMatchInputRevs []string
 			for _, m := range gotFm {
-				gotMatchCount += int(m.ResultCount())
-				gotMatchURLs = append(gotMatchURLs, m.Resource())
+				gotMatchCount += m.ResultCount()
+				gotMatchKeys = append(gotMatchKeys, m.Key())
 				if m.InputRev != nil {
 					gotMatchInputRevs = append(gotMatchInputRevs, *m.InputRev)
 				}
 			}
-			if diff := cmp.Diff(tt.wantMatchURLs, gotMatchURLs); diff != "" {
+			if diff := cmp.Diff(tt.wantMatchKeys, gotMatchKeys); diff != "" {
 				t.Errorf("match URLs mismatch (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(tt.wantMatchInputRevs, gotMatchInputRevs); diff != "" {
