@@ -183,6 +183,12 @@ func Main(enterpriseSetupHook func(db dbutil.DB, outOfBandMigrationRunner *oobmi
 		Registerer: prometheus.DefaultRegisterer,
 	})
 
+	// TODO - document
+	if err := outOfBandMigrationRunner.Validate(ctx, version.Version()); err != nil {
+		// TODO - additional instructions
+		log.Fatalf("invalid out of band migration status: %v", err)
+	}
+
 	// Run a background job to handle encryption of external service configuration.
 	extsvcMigrator := database.NewExternalServiceConfigMigratorWithDB(db)
 	extsvcMigrator.AllowDecrypt = os.Getenv("ALLOW_DECRYPT_MIGRATION") == "true"
