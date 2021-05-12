@@ -1,29 +1,41 @@
 package worker
 
 import (
+	"context"
 	"sort"
 	"sync"
 )
 
 type IDSet struct {
 	sync.RWMutex
-	ids map[int]struct{}
+	ids map[int]context.CancelFunc
 }
 
 func newIDSet() *IDSet {
-	return &IDSet{ids: map[int]struct{}{}}
+	return &IDSet{ids: map[int]context.CancelFunc{}}
 }
 
-func (i *IDSet) Add(id int) {
+func (i *IDSet) Add(id int, cancel context.CancelFunc) bool {
 	i.Lock()
-	i.ids[id] = struct{}{}
-	i.Unlock()
+	defer i.Unlock()
+
+	if _, ok := i.ids[id]; ok {
+		return false
+	}
+
+	i.ids[id] = cancel
+	return true
 }
 
 func (i *IDSet) Remove(id int) {
 	i.Lock()
+	cancel, ok := i.ids[id]
 	delete(i.ids, id)
 	i.Unlock()
+
+	if ok {
+		cancel()
+	}
 }
 
 func (i *IDSet) Slice() []int {
