@@ -3,15 +3,19 @@ package oobmigration
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/derision-test/glock"
+	"github.com/hashicorp/go-multierror"
 	"github.com/inconshreveable/log15"
 	"github.com/opentracing/opentracing-go/log"
 
 	"github.com/sourcegraph/sourcegraph/internal/database/dbutil"
 	"github.com/sourcegraph/sourcegraph/internal/goroutine"
+	"github.com/sourcegraph/sourcegraph/internal/lazyregexp"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 )
 
@@ -84,6 +88,72 @@ func (r *Runner) Register(id int, migrator Migrator, options MigratorOptions) er
 		ticker: options.ticker,
 	}}
 	return nil
+}
+
+type migrationStatusError struct {
+	id               int
+	expectedProgress float64
+	actualProgress   float64
+}
+
+func newMigrationStatusError(id int, expectedProgress, actualProgress float64) error {
+	return migrationStatusError{
+		id:               id,
+		expectedProgress: expectedProgress,
+		actualProgress:   actualProgress,
+	}
+}
+
+func (e migrationStatusError) Error() string {
+	return fmt.Sprintf("migration %d expected to be at %.2f%% (at %.2f%%)", e.id, e.expectedProgress*100, e.actualProgress*100)
+}
+
+// Validate checks the migration records present in the database (including their progress) and returns
+// an error if there are unfinished migrations relative to the given version. Specifically, it is illegal
+// for a Sourcegraph instance to start up with a migration that has one of the following properties:
+//
+// - A migration with progress != 0 is introduced _after_ the given version
+// - A migration with progress != 1 is deprecated _on or before_ the given version
+//
+// This error is used to block startup of the application with an informative message indicating that
+// the site admin must either (1) run the previous version of Sourcegraph longer to allow the unfinished
+// migrations to complete in the case of a premature upgrade, or (2) run a standalone migration utility
+// to rewind changes on an unmoving database in the case of a premature downgrade.
+func (r *Runner) Validate(ctx context.Context, currentVersion string) error {
+	migrations, err := r.store.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	errs := make([]error, 0, len(migrations))
+	for _, migration := range migrations {
+		cmp, err := compareVersions(currentVersion, migration.Introduced)
+		if err != nil {
+			return err
+		}
+		if cmp == VersionOrderBefore && migration.Progress != 0 {
+			errs = append(errs, newMigrationStatusError(migration.ID, 0, migration.Progress))
+		}
+
+		if migration.Deprecated != nil {
+			cmp, err := compareVersions(currentVersion, *migration.Deprecated)
+			if err != nil {
+				return err
+			}
+			if cmp != VersionOrderBefore && migration.Progress != 1 {
+				errs = append(errs, newMigrationStatusError(migration.ID, 1, migration.Progress))
+			}
+		}
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	}
+
+	return multierror.Append(nil, errs...)
 }
 
 // Start runs registered migrators on a loop until they complete. This method will periodically
@@ -300,4 +370,64 @@ func runMigrationDown(ctx context.Context, migration *Migration, migrator Migrat
 
 	log15.Debug("Running down migration", "migrationID", migration.ID)
 	return migrator.Down(ctx)
+}
+
+var versionPattern = lazyregexp.New(`^(\d+)\.(\d+)`)
+
+type VersionOrder int
+
+const (
+	VersionOrderUnspecified VersionOrder = iota
+	VersionOrderBefore
+	VersionOrderEqual
+	VersionOrderAfter
+)
+
+// compareVersions returns the relationship between `a (op) b`.
+func compareVersions(a, b string) (VersionOrder, error) {
+	aMajor, aMinor, err := parseVersion(a)
+	if err != nil {
+		return VersionOrderUnspecified, err
+	}
+
+	bMajor, bMinor, err := parseVersion(b)
+	if err != nil {
+		return VersionOrderUnspecified, err
+	}
+
+	for _, p := range [][2]int{
+		{aMajor, bMajor},
+		{aMinor, bMinor},
+	} {
+		if p[0] < p[1] {
+			return VersionOrderBefore, nil
+		}
+		if p[0] > p[1] {
+			return VersionOrderAfter, nil
+		}
+	}
+
+	return VersionOrderEqual, nil
+}
+
+// parseVersion returns the major and minor versions from the given version string. This ignores
+// patch versions and trailing suffixes. If the given error is not a valid, parseable Sourcegraph
+// version string, an error is returned.
+func parseVersion(version string) (major, minor int, err error) {
+	match := versionPattern.FindAllStringSubmatch(version, 1)
+	if len(match) == 0 {
+		return 0, 0, fmt.Errorf("expected version of the form `{major}.{minor}`, have %s", version)
+	}
+
+	major, err = strconv.Atoi(match[0][1])
+	if err != nil {
+		return 0, 0, err
+	}
+
+	minor, err = strconv.Atoi(match[0][2])
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return major, minor, nil
 }

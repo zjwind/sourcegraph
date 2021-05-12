@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/derision-test/glock"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/sourcegraph/sourcegraph/internal/observation"
 )
@@ -321,5 +323,111 @@ func runMigratorWrapped(store storeIface, migrator Migrator, ticker glock.Ticker
 func tickN(ticker *glock.MockTicker, n int) {
 	for i := 0; i < n; i++ {
 		ticker.BlockingAdvance(time.Second)
+	}
+}
+
+func TestRunnerValidate(t *testing.T) {
+	store := NewMockStoreIface()
+	store.ListFunc.SetDefaultReturn([]Migration{
+		{ID: 1, Introduced: "3.10", Progress: 1, Deprecated: strPtr("3.11")},
+		{ID: 1, Introduced: "3.11", Progress: 1, Deprecated: strPtr("3.13")},
+		{ID: 1, Introduced: "3.11", Progress: 1, Deprecated: strPtr("3.12")},
+		{ID: 1, Introduced: "3.12", Progress: 0},
+		{ID: 1, Introduced: "3.13", Progress: 0},
+	}, nil)
+
+	runner := newRunner(store, nil, &observation.TestContext)
+	statusErr := runner.Validate(context.Background(), "3.12")
+	expectedErr := error(nil)
+
+	if diff := cmp.Diff(expectedErr, statusErr, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("unexpected status error (-want +got):\n%s", diff)
+	}
+}
+
+func TestRunnerValidateUnfinishedUp(t *testing.T) {
+	store := NewMockStoreIface()
+	store.ListFunc.SetDefaultReturn([]Migration{
+		{ID: 1, Introduced: "3.11", Progress: 0.65, Deprecated: strPtr("3.12")},
+	}, nil)
+
+	runner := newRunner(store, nil, &observation.TestContext)
+	statusErr := runner.Validate(context.Background(), "3.12")
+
+	if diff := cmp.Diff(newMigrationStatusError(1, 1, 0.65), statusErr, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("unexpected status error (-want +got):\n%s", diff)
+	}
+}
+
+func TestRunnerValidateUnfinishedDown(t *testing.T) {
+	store := NewMockStoreIface()
+	store.ListFunc.SetDefaultReturn([]Migration{
+		{ID: 1, Introduced: "3.13", Progress: 0.15, Deprecated: strPtr("3.15"), ApplyReverse: true},
+	}, nil)
+
+	runner := newRunner(store, nil, &observation.TestContext)
+	statusErr := runner.Validate(context.Background(), "3.12")
+
+	if diff := cmp.Diff(newMigrationStatusError(1, 0, 0.15), statusErr, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("unexpected status error (-want +got):\n%s", diff)
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	testCases := []struct {
+		left     string
+		right    string
+		expected VersionOrder
+		err      bool
+	}{
+		{left: "3.12", right: "3.12", expected: VersionOrderEqual},
+		{left: "3.11", right: "3.12", expected: VersionOrderBefore},
+		{left: "3.12", right: "3.11", expected: VersionOrderAfter},
+		{left: "3.12", right: "4.11", expected: VersionOrderBefore},
+		{left: "4.11", right: "3.12", expected: VersionOrderAfter},
+	}
+
+	for _, testCase := range testCases {
+		order, err := compareVersions(testCase.left, testCase.right)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		if order != testCase.expected {
+			t.Errorf("unexpected order. want=%d have=%d", testCase.expected, order)
+		}
+	}
+}
+
+func TestParseVersion(t *testing.T) {
+	testCases := []struct {
+		input string
+		major int
+		minor int
+		err   bool
+	}{
+		{input: "3.12", major: 3, minor: 12},
+		{input: "3.12.6", major: 3, minor: 12},
+		{input: "x3.12", err: true},
+		{input: "3.x12", err: true},
+		{input: "3.200000000000000000000", err: true}, // overflow
+	}
+
+	for _, testCase := range testCases {
+		major, minor, err := parseVersion(testCase.input)
+		if testCase.err {
+			if err == nil {
+				t.Fatalf("expected error")
+			}
+		} else {
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if major != testCase.major {
+				t.Errorf("unexpected major. want=%d have=%d", testCase.major, major)
+			}
+			if minor != testCase.minor {
+				t.Errorf("unexpected minor. want=%d have=%d", testCase.minor, minor)
+			}
+		}
 	}
 }
