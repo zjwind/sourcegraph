@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/goroutine"
 	"github.com/sourcegraph/sourcegraph/internal/lazyregexp"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
+	"github.com/sourcegraph/sourcegraph/internal/version"
 )
 
 // Runner correlates out-of-band migration records in the database with a migrator instance,
@@ -120,6 +121,10 @@ func (e migrationStatusError) Error() string {
 // migrations to complete in the case of a premature upgrade, or (2) run a standalone migration utility
 // to rewind changes on an unmoving database in the case of a premature downgrade.
 func (r *Runner) Validate(ctx context.Context, currentVersion string) error {
+	if !versionPattern.MatchString(currentVersion) || version.IsDev(currentVersion) {
+		return nil
+	}
+
 	migrations, err := r.store.List(ctx)
 	if err != nil {
 		return err
