@@ -51,6 +51,13 @@ func (h *handler) Handle(ctx context.Context, s workerutil.Store, record workeru
 		return errors.Wrap(err, message)
 	}
 
+	start := time.Now()
+	defer func() {
+		if honey.Enabled() {
+			_ = createHoneyEvent(ctx, job, err, time.Since(start)).Send()
+		}
+	}()
+
 	if !h.idSet.Add(job.ID, cancel) {
 		return ErrJobAlreadyExists
 	}
