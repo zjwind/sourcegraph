@@ -12,11 +12,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	"github.com/honeycombio/libhoney-go"
 	"github.com/inconshreveable/log15"
 	"github.com/pkg/errors"
 
 	"github.com/sourcegraph/sourcegraph/enterprise/cmd/executor/internal/command"
 	"github.com/sourcegraph/sourcegraph/enterprise/internal/executor"
+	"github.com/sourcegraph/sourcegraph/internal/honey"
 	"github.com/sourcegraph/sourcegraph/internal/workerutil"
 )
 
@@ -218,4 +220,25 @@ func union(a, b map[string]string) map[string]string {
 
 func scriptNameFromJobStep(job executor.Job, i int) string {
 	return fmt.Sprintf("%d.%d_%s@%s.sh", job.ID, i, strings.ReplaceAll(job.RepositoryName, "/", "_"), job.Commit)
+}
+
+func createHoneyEvent(ctx context.Context, job executor.Job, err error, duration time.Duration) *libhoney.Event {
+	fields := map[string]interface{}{
+		"duration_ms":    duration.Milliseconds(),
+		"recordID":       job.RecordID(),
+		"repositoryName": job.RepositoryName,
+		"commit":         job.Commit,
+		"numDockerSteps": len(job.DockerSteps),
+		"numCliSteps":    len(job.CliSteps),
+	}
+
+	if err != nil {
+		fields["error"] = err.Error()
+	}
+	// Currently disabled as the import pulls in conf packages
+	// if spanURL := trace.SpanURLFromContext(ctx); spanURL != "" {
+	// 	fields["trace"] = spanURL
+	// }
+
+	return honey.EventWithFields("executor", fields)
 }
