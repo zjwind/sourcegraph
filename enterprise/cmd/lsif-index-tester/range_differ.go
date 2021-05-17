@@ -30,7 +30,7 @@ func fmtLine(line int, prefixWidth int, text string) string {
 	if line == -1 {
 		prefix = strings.Repeat(" ", prefixWidth)
 	} else {
-		prefix = fmt.Sprintf("%d", line)
+		prefix = fmt.Sprintf("%"+fmt.Sprint(prefixWidth)+"d", line)
 	}
 
 	return fmt.Sprintf("|%s| %s", prefix, text)
@@ -57,7 +57,7 @@ func DrawLocations(contents string, expected, actual Location, context int) (str
 
 	splitLines := strings.Split(contents, "\n")
 	if sameLine(expected, actual) {
-		line := expected.Range.Start.Line
+		line := expected.Range.End.Line
 
 		if line > len(splitLines) {
 			return "", errors.New("Line does not exist in contents")
@@ -65,7 +65,7 @@ func DrawLocations(contents string, expected, actual Location, context int) (str
 
 		text := header(expected) + "\n"
 
-		prefixWidth := len(fmt.Sprintf("%d", line+1))
+		prefixWidth := len(fmt.Sprintf("%d", line+1+context))
 
 		for offset := context; offset > 0; offset-- {
 			newLine := line - offset

@@ -439,32 +439,22 @@ func runOneReferencesRequest(projectRoot string, bundle *semantic.GroupedBundleD
 	sortReferences(actualReferences)
 	sortReferences(expectedReferences)
 
-	filesToContents := make(map[string]string)
-
 	if !cmp.Equal(actualReferences, expectedReferences) {
 		diff := ""
 		for index, actual := range actualReferences {
+			if len(expectedReferences) <= index {
+				diff += fmt.Sprintf("Missing Reference:\n%+v", actual)
+				continue
+			}
+
 			expected := expectedReferences[index]
 			if actual == expected {
 				continue
 			}
 
-			contents, ok := filesToContents[actual.URI]
-			if !ok {
-				// ok, read the file
-				fileName := strings.Replace(actual.URI, "file://", "", 1)
-				byteContents, err := os.ReadFile(path.Join(projectRoot, fileName))
-				if err != nil {
-					return err
-				}
-
-				contents = string(byteContents)
-				filesToContents[actual.URI] = contents
-			}
-
-			thisDiff, err := DrawLocations(contents, expected, actual, 2)
+			thisDiff, err := getLocationDiff(projectRoot, expected, actual)
 			if err != nil {
-				return errors.Wrap(err, "Unable to draw the pretty diff")
+				return err
 			}
 
 			diff += cmp.Diff(actual, expected)
@@ -500,8 +490,16 @@ func runOneDefinitionRequest(projectRoot string, bundle *semantic.GroupedBundleD
 	//       should allow testing that at some point
 	if len(results) > 1 {
 		return errors.New("Had too many results")
-	} else if len(results) == 0 {
-		return errors.New("Found no results")
+	}
+
+	// Expected results but didn't get any
+	if len(results) == 0 {
+		fileResult.Failed = append(fileResult.Failed, failedTest{
+			Name: testCase.Name,
+			Diff: "Found no results\n" + cmp.Diff(testCase.Response, results),
+		})
+
+		return nil
 	}
 
 	definitions := results[0].Definitions
@@ -514,9 +512,14 @@ func runOneDefinitionRequest(projectRoot string, bundle *semantic.GroupedBundleD
 
 	response := transformLocationToResponse(definitions[0])
 	if diff := cmp.Diff(response, testCase.Response); diff != "" {
+		thisDiff, err := getLocationDiff(projectRoot, testCase.Response, response)
+		if err != nil {
+			return err
+		}
+
 		fileResult.Failed = append(fileResult.Failed, failedTest{
 			Name: testCase.Name,
-			Diff: diff,
+			Diff: diff + "\n" + thisDiff,
 		})
 	} else {
 		fileResult.Passed = append(fileResult.Passed, passedTest{
@@ -550,4 +553,38 @@ func readBundle(root string) (*semantic.GroupedBundleDataMaps, error) {
 	}
 
 	return semantic.GroupedBundleDataChansToMaps(bundle), nil
+}
+
+var filesToContents = make(map[string]string)
+
+func getFileContents(projectRoot, uri string) (string, error) {
+	contents, ok := filesToContents[uri]
+	if !ok {
+		// ok, read the file
+		fileName := strings.Replace(uri, "file://", "", 1)
+		byteContents, err := os.ReadFile(path.Join(projectRoot, fileName))
+		if err != nil {
+			return "", err
+		}
+
+		contents = string(byteContents)
+		filesToContents[uri] = contents
+	}
+
+	return contents, nil
+}
+
+func getLocationDiff(projectRoot string, expected, actual Location) (string, error) {
+
+	contents, err := getFileContents(projectRoot, actual.URI)
+	if err != nil {
+		return "", err
+	}
+
+	diff, err := DrawLocations(contents, expected, actual, 2)
+	if err != nil {
+		return "", errors.Wrap(err, "Unable to draw the pretty diff")
+	}
+
+	return diff, nil
 }
