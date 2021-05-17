@@ -190,7 +190,7 @@ func serveSearchConfiguration(w http.ResponseWriter, r *http.Request) error {
 		getPriority := func() float64 {
 			switch m := repo.Metadata.(type) {
 			case *github.Repository:
-				return float64(m.Stars)
+				return float64(m.StargazerCount)
 			}
 			return 0.0
 		}

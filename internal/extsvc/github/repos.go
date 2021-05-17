@@ -42,9 +42,8 @@ type Repository struct {
 	ViewerPermission string // ADMIN, WRITE, READ, or empty if unknown. Only the graphql api populates this. https://developer.github.com/v4/enum/repositorypermission/
 
 	// Metadata retained for ranking
-	Stars    int
-	Watchers int
-	Forks    int
+	StargazerCount int
+	ForkCount      int
 }
 
 func ownerNameCacheKey(owner, name string) string       { return "0:" + owner + "/" + name }
@@ -212,9 +211,8 @@ func convertRestRepo(restRepo restRepository) *Repository {
 		IsLocked:         restRepo.Locked,
 		IsDisabled:       restRepo.Disabled,
 		ViewerPermission: convertRestRepoPermissions(restRepo.Permissions),
-		Stars:            restRepo.Stars,
-		Watchers:         restRepo.Watchers,
-		Forks:            restRepo.Forks,
+		StargazerCount:   restRepo.Stars,
+		ForkCount:        restRepo.Forks,
 	}
 }
 
@@ -333,6 +331,8 @@ fragment RepositoryFields on Repository {
 	isLocked
 	isDisabled
 	viewerPermission
+	stargazerCount
+	forkCount
 }
 	`
 	}
@@ -351,6 +351,8 @@ fragment RepositoryFields on Repository {
 	isArchived
 	isLocked
 	isDisabled
+	stargazerCount
+	forkCount
 }
 	`
 }
