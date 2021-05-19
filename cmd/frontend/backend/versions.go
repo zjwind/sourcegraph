@@ -32,16 +32,20 @@ func (e UpgradeError) Error() string {
 	)
 }
 
-// GetFirstServiceVersion returns the first version for the given Sourcegraph service.
-// This will not be set if UpdateServiceVersion has never been called.
-func GetFirstServiceVersion(ctx context.Context, service string) (version string, err error) {
+// GetFirstServiceVersion returns the major and minor values of the first version registered
+// for the given Sourcegraph service. This will not be set if UpdateServiceVersion has never
+// been called.
+func GetFirstServiceVersion(ctx context.Context, service string) (major, minor int, err error) {
 	q := sqlf.Sprintf(getFirstVersionQuery, service)
 	row := dbconn.Global.QueryRowContext(ctx, q.Query(sqlf.PostgresBindVar), q.Args()...)
-	if err = row.Scan(&version); err != nil && err != sql.ErrNoRows {
-		return "", err
+	if err = row.Scan(&major, &minor); err != nil && err != sql.ErrNoRows {
+		return 0, 0, err
 	}
-	return version, nil
+
+	return major, minor, nil
 }
+
+const getFirstVersionQuery = `SELECT first_version_major, first_version_minor FROM versions WHERE service = %s`
 
 // UpdateServiceVersion updates the latest version for the given Sourcegraph
 // service. It enforces our documented upgrade policy.
@@ -63,11 +67,17 @@ func UpdateServiceVersion(ctx context.Context, service, version string) error {
 			return &UpgradeError{Service: service, Previous: previous, Latest: latest}
 		}
 
+		var latestMajor, latestMinor int64
+		if latest != nil {
+			latestMajor, latestMinor = latest.Major(), latest.Minor()
+		}
+
 		q = sqlf.Sprintf(
 			upsertVersionQuery,
 			service,
 			version,
-			version,
+			latestMajor,
+			latestMinor,
 			time.Now().UTC(),
 			prev,
 		)
@@ -79,11 +89,9 @@ func UpdateServiceVersion(ctx context.Context, service, version string) error {
 
 const getVersionQuery = `SELECT version FROM versions WHERE service = %s`
 
-const getFirstVersionQuery = `SELECT first_version FROM versions WHERE service = %s`
-
 const upsertVersionQuery = `
-INSERT INTO versions (service, version, first_version, updated_at)
-VALUES (%s, %s, %s, %s) ON CONFLICT (service) DO
+INSERT INTO versions (service, version, first_version_major, first_version_minor, updated_at)
+VALUES (%s, %s, %s, %s, %s) ON CONFLICT (service) DO
 UPDATE SET (version, updated_at) =
 	(excluded.version, excluded.updated_at)
 WHERE versions.version = %s`

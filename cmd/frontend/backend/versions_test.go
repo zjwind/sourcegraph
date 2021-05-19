@@ -29,12 +29,15 @@ func TestGetFirstServiceVersion(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	version, err := GetFirstServiceVersion(ctx, "service")
+	major, minor, err := GetFirstServiceVersion(ctx, "service")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if version != "1.2.3" {
-		t.Fatalf("unexpected version. want=%s have=%s", "1.2.3", version)
+	if major != 1 {
+		t.Errorf("unexpected version. want=%d have=%d", 1, major)
+	}
+	if minor != 2 {
+		t.Errorf("unexpected version. want=%d have=%d", 2, minor)
 	}
 }
 

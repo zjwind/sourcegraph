@@ -183,6 +183,12 @@ func Main(enterpriseSetupHook func(db dbutil.DB, outOfBandMigrationRunner *oobmi
 		Registerer: prometheus.DefaultRegisterer,
 	})
 
+	currentVersion := version.Version()
+	firstVersion, err := backend.GetFirstServiceVersion(ctx, "frontend")
+	if err != nil {
+		log.Fatalf("failed to retrieve first instance version: %v", err)
+	}
+
 	// Ensure that there are no unfinished migrations that would cause inconsistent
 	// results. If there are unfinished migrations, the site-admin needs to run the
 	// previous version of Sourcegraph for longer while the migrations finish.
@@ -190,7 +196,7 @@ func Main(enterpriseSetupHook func(db dbutil.DB, outOfBandMigrationRunner *oobmi
 	// This condition should only be hit when the site-admin prematurely updates to
 	// a version that requires the migration process to be already finished. There
 	// are warnings on the site-admin migration page indicating this danger.
-	if err := outOfBandMigrationRunner.Validate(ctx, version.Version()); err != nil {
+	if err := outOfBandMigrationRunner.Validate(ctx, currentVersion, firstVersion); err != nil {
 		log.Fatalf("unfinished migrations: %v", err)
 	}
 

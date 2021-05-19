@@ -120,10 +120,16 @@ func (e migrationStatusError) Error() string {
 // the site admin must either (1) run the previous version of Sourcegraph longer to allow the unfinished
 // migrations to complete in the case of a premature upgrade, or (2) run a standalone migration utility
 // to rewind changes on an unmoving database in the case of a premature downgrade.
-func (r *Runner) Validate(ctx context.Context, currentVersion string) error {
-	if !versionPattern.MatchString(currentVersion) || version.IsDev(currentVersion) {
+func (r *Runner) Validate(ctx context.Context, currentVersion, firstVersion string) error {
+	if !versionPattern.MatchString(currentVersion) || version.IsDev(currentVersion) || !versionPattern.MatchString(firstVersion) || version.IsDev(firstVersion) {
 		return nil
 	}
+
+	//
+	// TODO - use semver package instead in backend
+	// TODO - use semver package instead in frontend
+	// TODO - hide old things based on first version (from UI as well)
+	//
 
 	migrations, err := r.store.List(ctx)
 	if err != nil {
@@ -132,20 +138,34 @@ func (r *Runner) Validate(ctx context.Context, currentVersion string) error {
 
 	errs := make([]error, 0, len(migrations))
 	for _, migration := range migrations {
-		cmp, err := compareVersions(currentVersion, migration.Introduced)
+		currentVersionCmpIntroduced, err := compareVersions(currentVersion, migration.Introduced)
 		if err != nil {
 			return err
 		}
-		if cmp == VersionOrderBefore && migration.Progress != 0 {
+
+		if currentVersionCmpIntroduced == VersionOrderBefore && migration.Progress != 0 {
+			// Unfinished rollback: currentVersion before introduced version and progress > 0
 			errs = append(errs, newMigrationStatusError(migration.ID, 0, migration.Progress))
 		}
 
-		if migration.Deprecated != nil {
-			cmp, err := compareVersions(currentVersion, *migration.Deprecated)
-			if err != nil {
-				return err
-			}
-			if cmp != VersionOrderBefore && migration.Progress != 1 {
+		if migration.Deprecated == nil {
+			continue
+		}
+
+		currentVersionCmpDeprecated, err := compareVersions(currentVersion, *migration.Deprecated)
+		if err != nil {
+			return err
+		}
+		firstVersionCmpDeprecated, err := compareVersions(firstVersion, *migration.Deprecated)
+		if err != nil {
+			return err
+		}
+
+		if currentVersionCmpDeprecated != VersionOrderBefore && migration.Progress != 1 {
+			if firstVersionCmpDeprecated != VersionOrderBefore {
+				// Edge case: sourcegraph instance booted on or after deprecation version
+			} else {
+				// Unfinished migration: currentVersion on or after deprecated version, progress < 1
 				errs = append(errs, newMigrationStatusError(migration.ID, 1, migration.Progress))
 			}
 		}
