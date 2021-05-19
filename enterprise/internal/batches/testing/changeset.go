@@ -32,7 +32,8 @@ type TestChangesetOpts struct {
 	DiffStatChanged int32
 	DiffStatDeleted int32
 
-	PublicationState btypes.ChangesetPublicationState
+	PublicationState        btypes.ChangesetPublicationState
+	DesiredPublicationState btypes.DesiredChangesetPublicationState
 
 	ReconcilerState btypes.ReconcilerState
 	FailureMessage  string
@@ -71,6 +72,11 @@ func CreateChangeset(
 func BuildChangeset(opts TestChangesetOpts) *btypes.Changeset {
 	if opts.ExternalServiceType == "" {
 		opts.ExternalServiceType = extsvc.TypeGitHub
+	}
+
+	// TODO: remove
+	if opts.DesiredPublicationState == "" {
+		panic("missing desired publication state")
 	}
 
 	changeset := &btypes.Changeset{
@@ -121,17 +127,18 @@ func BuildChangeset(opts TestChangesetOpts) *btypes.Changeset {
 }
 
 type ChangesetAssertions struct {
-	Repo               api.RepoID
-	CurrentSpec        int64
-	PreviousSpec       int64
-	OwnedByBatchChange int64
-	ReconcilerState    btypes.ReconcilerState
-	PublicationState   btypes.ChangesetPublicationState
-	ExternalState      btypes.ChangesetExternalState
-	ExternalID         string
-	ExternalBranch     string
-	DiffStat           *diff.Stat
-	Closing            bool
+	Repo                    api.RepoID
+	CurrentSpec             int64
+	PreviousSpec            int64
+	OwnedByBatchChange      int64
+	ReconcilerState         btypes.ReconcilerState
+	PublicationState        btypes.ChangesetPublicationState
+	DesiredPublicationState btypes.DesiredChangesetPublicationState
+	ExternalState           btypes.ChangesetExternalState
+	ExternalID              string
+	ExternalBranch          string
+	DiffStat                *diff.Stat
+	Closing                 bool
 
 	Title string
 	Body  string
@@ -177,6 +184,10 @@ func AssertChangeset(t *testing.T, c *btypes.Changeset, a ChangesetAssertions) {
 
 	if have, want := c.PublicationState, a.PublicationState; have != want {
 		t.Fatalf("changeset PublicationState wrong. want=%s, have=%s", want, have)
+	}
+
+	if have, want := c.DesiredPublicationState, a.DesiredPublicationState; have != want {
+		t.Fatalf("changeset DesiredPublicationState wrong. want=%s, have=%s", want, have)
 	}
 
 	if have, want := c.ExternalState, a.ExternalState; have != want {

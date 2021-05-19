@@ -16,6 +16,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/extsvc/gitlab"
 	"github.com/sourcegraph/sourcegraph/internal/timeutil"
 	"github.com/sourcegraph/sourcegraph/internal/vcs/git"
+	"github.com/sourcegraph/sourcegraph/lib/batches"
 )
 
 // ChangesetState defines the possible states of a Changeset.
@@ -80,6 +81,90 @@ func (s ChangesetPublicationState) Published() bool { return s == ChangesetPubli
 // Unpublished returns true if the given state is ChangesetPublicationStateUnpublished.
 func (s ChangesetPublicationState) Unpublished() bool {
 	return s == ChangesetPublicationStateUnpublished
+}
+
+type DesiredChangesetPublicationState string
+
+const (
+	DesiredChangesetPublicationStateUnpublished   DesiredChangesetPublicationState = "unpublished"
+	DesiredChangesetPublicationStateDraft         DesiredChangesetPublicationState = "draft"
+	DesiredChangesetPublicationStatePublished     DesiredChangesetPublicationState = "published"
+	DesiredChangesetPublicationStateUiUnpublished DesiredChangesetPublicationState = "ui-unpublished"
+	DesiredChangesetPublicationStateUiDraft       DesiredChangesetPublicationState = "ui-draft"
+	DesiredChangesetPublicationStateUiPublished   DesiredChangesetPublicationState = "ui-published"
+)
+
+func (s DesiredChangesetPublicationState) Valid() bool {
+	switch s {
+	case DesiredChangesetPublicationStateUnpublished,
+		DesiredChangesetPublicationStateDraft,
+		DesiredChangesetPublicationStatePublished,
+		DesiredChangesetPublicationStateUiUnpublished,
+		DesiredChangesetPublicationStateUiDraft,
+		DesiredChangesetPublicationStateUiPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s DesiredChangesetPublicationState) IsUI() bool {
+	switch s {
+	case DesiredChangesetPublicationStateUiUnpublished,
+		DesiredChangesetPublicationStateUiDraft,
+		DesiredChangesetPublicationStateUiPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s DesiredChangesetPublicationState) Published() bool {
+	switch s {
+	case DesiredChangesetPublicationStatePublished,
+		DesiredChangesetPublicationStateUiPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s DesiredChangesetPublicationState) Unpublished() bool {
+	switch s {
+	case DesiredChangesetPublicationStateUnpublished,
+		DesiredChangesetPublicationStateUiUnpublished:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s DesiredChangesetPublicationState) Draft() bool {
+	switch s {
+	case DesiredChangesetPublicationStateDraft,
+		DesiredChangesetPublicationStateUiDraft:
+		return true
+	default:
+		return false
+	}
+}
+
+func DesiredChangesetPublicationStateFromActualState(v ChangesetPublicationState) DesiredChangesetPublicationState {
+	if v.Published() {
+		return DesiredChangesetPublicationStatePublished
+	}
+	return DesiredChangesetPublicationStateUnpublished
+}
+
+func DesiredChangesetPublicationStateFromPublishedValue(v batches.PublishedValue) DesiredChangesetPublicationState {
+	if v.Nil() {
+		return DesiredChangesetPublicationStateUiUnpublished
+	} else if v.Draft() {
+		return DesiredChangesetPublicationStateDraft
+	} else if v.True() {
+		return DesiredChangesetPublicationStatePublished
+	}
+	return DesiredChangesetPublicationStateUnpublished
 }
 
 // ReconcilerState defines the possible states of a Reconciler.
@@ -237,7 +322,8 @@ type Changeset struct {
 	CurrentSpecID  int64
 	PreviousSpecID int64
 
-	PublicationState ChangesetPublicationState // "unpublished", "published"
+	PublicationState        ChangesetPublicationState // "unpublished", "published"
+	DesiredPublicationState DesiredChangesetPublicationState
 
 	// All of the following fields are used by workerutil.Worker.
 	ReconcilerState  ReconcilerState
@@ -290,6 +376,13 @@ func (c *Changeset) IsImporting() bool { return c.Unpublished() && c.CurrentSpec
 // SetCurrentSpec sets the CurrentSpecID field and copies the diff stat over from the spec.
 func (c *Changeset) SetCurrentSpec(spec *ChangesetSpec) {
 	c.CurrentSpecID = spec.ID
+
+	// Check if we need to update the desired publication state, either because
+	// this is a new changeset that didn't previously have one, or because the
+	// published field was specified on the spec.
+	if !c.DesiredPublicationState.Valid() || !spec.Spec.Published.Nil() {
+		c.DesiredPublicationState = DesiredChangesetPublicationStateFromPublishedValue(spec.Spec.Published)
+	}
 
 	// Copy over diff stat from the spec.
 	diffStat := spec.DiffStat()
