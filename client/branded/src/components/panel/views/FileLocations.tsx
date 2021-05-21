@@ -32,7 +32,7 @@ export const FileLocationsNotFound: React.FunctionComponent = () => (
 
 export const FileLocationsNoGroupSelected: React.FunctionComponent = () => (
     <div className="file-locations__no-group-selected m-2">
-        <MapSearchIcon className="icon-inline" /> No locations found in the current repository
+        <MapSearchIcon className="icon-inline" /> No file or repository selected
     </div>
 )
 
