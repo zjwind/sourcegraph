@@ -284,14 +284,34 @@ func populateSearchFilterCountStatistics(event types.SearchAggregatedEvent, stat
 
 func newSearchEventPeriod() *types.SearchUsagePeriod {
 	return &types.SearchUsagePeriod{
-		Literal:            newSearchEventStatistics(),
-		Regexp:             newSearchEventStatistics(),
-		Structural:         newSearchEventStatistics(),
-		File:               newSearchEventStatistics(),
-		Repo:               newSearchEventStatistics(),
-		Diff:               newSearchEventStatistics(),
-		Commit:             newSearchEventStatistics(),
-		Symbol:             newSearchEventStatistics(),
+		Literal:    newSearchEventStatistics(),
+		Regexp:     newSearchEventStatistics(),
+		Structural: newSearchEventStatistics(),
+		File:       newSearchEventStatistics(),
+		Repo:       newSearchEventStatistics(),
+		Diff:       newSearchEventStatistics(),
+		Commit:     newSearchEventStatistics(),
+		Symbol:     newSearchEventStatistics(),
+
+		// Counts of search query attributes. Ref: RFC 384.
+		OperatorOr:              newSearchCountStatistics(),
+		OperatorAnd:             newSearchCountStatistics(),
+		OperatorNot:             newSearchCountStatistics(),
+		SelectRepo:              newSearchCountStatistics(),
+		SelectFile:              newSearchCountStatistics(),
+		SelectContent:           newSearchCountStatistics(),
+		SelectCommitDiffAdded:   newSearchCountStatistics(),
+		SelectCommitDiffRemoved: newSearchCountStatistics(),
+		RepoContains:            newSearchCountStatistics(),
+		RepoContainsFile:        newSearchCountStatistics(),
+		RepoContainsContent:     newSearchCountStatistics(),
+		RepoContainsCommitAfter: newSearchCountStatistics(),
+		CountAll:                newSearchCountStatistics(),
+		NonGlobalContext:        newSearchCountStatistics(),
+		OnlyPatterns:            newSearchCountStatistics(),
+		OnlyPatternsThreeOrMore: newSearchCountStatistics(),
+
+		// DEPRECATED.
 		Case:               newSearchCountStatistics(),
 		Committer:          newSearchCountStatistics(),
 		Lang:               newSearchCountStatistics(),
