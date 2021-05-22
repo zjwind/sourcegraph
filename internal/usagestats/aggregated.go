@@ -195,22 +195,22 @@ var searchLatencyExtractors = map[string]func(p *types.SearchUsagePeriod) *types
 }
 
 var searchFilterCountExtractors = map[string]func(p *types.SearchUsagePeriod) *types.SearchCountStatistics{
-	"count_or":                          func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.or },
-	"count_and":                         func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.and },
-	"count_not":                         func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.not },
-	"count_select_repo":                 func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.select_repo },
-	"count_select_file":                 func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.select_file },
-	"count_select_content":              func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.select_content },
-	"count_select_commit_diff_added":    func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.select_commit_diff_added },
-	"count_select_commit_diff_removed":  func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.select_commit_diff_removed },
-	"count_repo_contains":               func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.repo_contains },
-	"count_repo_contains_file":          func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.repo_contains_file },
-	"count_repo_contains_content":       func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.repo_contains_content },
-	"count_repo_contains_commit_after":  func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.repo_contains_commit_after },
-	"count_count_all":                   func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.count_all },
-	"count_non_global_context":          func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.non_global_context },
-	"count_only_patterns":               func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.only_patterns },
-	"count_only_patterns_three_or_more": func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.only_patterns_three_or_more },
+	"count_or":                          func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.OperatorOr },
+	"count_and":                         func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.OperatorAnd },
+	"count_not":                         func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.OperatorNot },
+	"count_select_repo":                 func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.SelectRepo },
+	"count_select_file":                 func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.SelectFile },
+	"count_select_content":              func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.SelectContent },
+	"count_select_commit_diff_added":    func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.SelectCommitDiffAdded },
+	"count_select_commit_diff_removed":  func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.SelectCommitDiffRemoved },
+	"count_repo_contains":               func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.RepoContains },
+	"count_repo_contains_file":          func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.RepoContainsFile },
+	"count_repo_contains_content":       func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.RepoContainsContent },
+	"count_repo_contains_commit_after":  func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.RepoContainsCommitAfter },
+	"count_count_all":                   func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.CountAll },
+	"count_non_global_context":          func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.NonGlobalContext },
+	"count_only_patterns":               func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.OnlyPatterns },
+	"count_only_patterns_three_or_more": func(p *types.SearchUsagePeriod) *types.SearchCountStatistics { return p.OnlyPatternsThreeOrMore },
 }
 
 // populateSearchEventStatistics is a side-effecting function that populates the
